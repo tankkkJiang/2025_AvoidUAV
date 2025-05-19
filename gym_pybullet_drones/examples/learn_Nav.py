@@ -131,7 +131,7 @@ def main(demo_gui: bool = DEFAULT_GUI,
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--demo_gui',   default=True, type=bool, help='是否可视化测试')
-    parser.add_argument('--wandb', default=True, type=bool, help='启用 wandb')
+    parser.add_argument('--wandb_flag', default=True, type=bool, help='启用 wandb')
     parser.add_argument('--run_name', default=None, type=str, help='wandb run 名称')
     parser.add_argument('--project', default=DEFAULT_WANDB_PROJECT, type=str)
     parser.add_argument('--entity',  default=None, type=str)
