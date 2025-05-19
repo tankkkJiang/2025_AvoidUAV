@@ -1,7 +1,6 @@
-# =============================================
 # NavRLAviary.py
 # 无人机导航 RL 环境（简化 NavRL 版）
-# =============================================
+
 """NavRL‑style 训练环境，基于 gym‑pybullet‑drones 的 BaseRLAviary。
 
 主要特性
@@ -34,9 +33,13 @@ from gym_pybullet_drones.utils.enums import ActionType, ObservationType, DroneMo
 DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
 DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
+DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
 DEFAULT_MAX_EPISODE_SEC    = 20      # 单集最长秒数
 DEFAULT_MAX_VEL_MPS        = 3.0     # 最大速度 (m/s)
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
+DEFAULT_S_INT_DIM          = 5       # S_int 维度
+DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
+
 
 # 奖励权重 λ_i
 LAMBDA_VEL     = 1.0
@@ -205,13 +208,22 @@ class NavRLAviary(BaseRLAviary):
         obs_vec = np.hstack([S_int, S_dyn_flat, ray_dist, act_buf]).astype(np.float32)
         return obs_vec.reshape(1, -1)  # Gymnasium 多智能体接口期望 (num_drones, obs_dim)
 
-    def _observationSpace(self):  # noqa: D401
-        """根据观测向量长度生成 spaces.Box。"""
-        dummy_obs = self._computeObs()  # 调用一次获取维度
-        lo = -np.inf * np.ones_like(dummy_obs)
-        hi = +np.inf * np.ones_like(dummy_obs)
+
+    def _observationSpace(self):
+        """
+        根据 DEFAULT 参数计算观测维度：
+          S_int + S_dyn + S_stat + 动作缓存
+        """
+        obs_dim = (
+            DEFAULT_S_INT_DIM                  # S_int
+            + self.N_D * DEFAULT_DYN_FEATURE_DIM  # S_dyn
+            + self.N_H * self.N_V              # S_stat
+            + self.ACTION_BUFFER_SIZE * DEFAULT_ACTION_DIM  # 动作缓存
+        )
+        low = -np.inf * np.ones((1, obs_dim), dtype=np.float32)
+        high = np.inf * np.ones((1, obs_dim), dtype=np.float32)
         from gymnasium import spaces
-        return spaces.Box(low=lo, high=hi, dtype=np.float32)
+        return spaces.Box(low=low, high=high, dtype=np.float32)
 
     # ------------------------ Reward & Termination ------------------------
 

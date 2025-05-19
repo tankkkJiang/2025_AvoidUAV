@@ -1,14 +1,5 @@
 # ============================= learn_Nav.py ==============================
 
-
-"""训练 NavRLAviary 环境的示例脚本（PPO）。
-
-运行示例
---------
-$ python learn_Nav.py  # 本地 GUI 训练
-$ python learn_Nav.py --local False --gui False  # 远程无 GUI 简易测试
-"""
-
 import argparse
 import os
 from datetime import datetime
