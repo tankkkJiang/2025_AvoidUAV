@@ -67,7 +67,7 @@ class NavRLAviary(BaseRLAviary):
         self.EPISODE_SEC = max_episode_sec
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
-        self.SAMPLING_RANGE = 25.0   # 50×50 平方米 → 边长一半 25
+        self.SAMPLING_RANGE = 250.0   # 50×50 平方米 → 边长一半 25
 
         # 用于奖励计算的上一步速度缓存
         self.prev_vel_world = np.zeros(3)
@@ -82,10 +82,20 @@ class NavRLAviary(BaseRLAviary):
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
 
+        # 用来存上一次 debug 文本的 id
+        self._start_text_id = None
+        self._goal_text_id  = None
+
     # ------------------------ Episode 管理 ------------------------
 
     def reset(self, seed: int | None = None, options=None):  # noqa: D401
         """重置环境：随机起点 Ps 与目标 Pg，并建立目标坐标系。"""
+        # 1. 删除上一集的标记
+        if self._start_text_id is not None:
+            p.removeUserDebugItem(self._start_text_id, physicsClientId=self.CLIENT)
+        if self._goal_text_id is not None:
+            p.removeUserDebugItem(self._goal_text_id,  physicsClientId=self.CLIENT)
+
         obs, info = super().reset(seed=seed, options=options)
 
         # 取当前无人机位置作为 Ps
@@ -109,6 +119,24 @@ class NavRLAviary(BaseRLAviary):
         # 重置速度缓存
         self.prev_vel_world = np.zeros(3)
         self.step_counter = 0
+
+        p.addUserDebugText(
+            text="S",
+            textPosition=self.P_s.tolist(),
+            textColorRGB=[0, 1, 0],
+            textSize=1.5,
+            lifeTime=0,
+            physicsClientId=self.CLIENT
+        )
+
+        p.addUserDebugText(
+            text="G",
+            textPosition=self.P_g.tolist(),
+            textColorRGB=[1, 0, 0],
+            textSize=1.5,
+            lifeTime=0,
+            physicsClientId=self.CLIENT
+        )
         return self._computeObs(), info
 
     # ------------------------ Observation ------------------------
