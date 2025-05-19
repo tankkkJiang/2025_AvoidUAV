@@ -25,8 +25,10 @@ def random_play(env: NavRLAviary):
     """
     无限循环随机动作测试，直到手动退出（Ctrl+C 或关闭窗口）。
     """
+    episode = 0
     try:
         while True:
+            episode += 1
             obs, info = env.reset()
             terminated = truncated = False
             while not (terminated or truncated):
@@ -34,6 +36,7 @@ def random_play(env: NavRLAviary):
                 obs, reward, terminated, truncated, info = env.step(action)
                 # 控制步速，使视觉效果可见
                 time.sleep(1.0 / env.CTRL_FREQ)
+            print(f"[Episode {episode}]")
     except KeyboardInterrupt:
         print("\n随机测试已手动终止。")
     finally:
