@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 # test_navrl_gui.py
 
 import os
@@ -48,7 +47,7 @@ def rl_train(env: NavRLAviary, timesteps: int = 10000):
 if __name__ == "__main__":
     # 创建环境 —— 注意传 gui=True
     env = NavRLAviary(
-        drone_model=None,   # 使用默认 CF2X
+        drone_model=DroneModel.CF2X,
         num_drones=1,
         gui=True,           # 打开 PyBullet GUI
         record=False,       # 如需录像可打开
