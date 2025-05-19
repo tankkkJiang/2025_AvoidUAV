@@ -23,7 +23,7 @@ DEFAULT_TOTAL_STEPS      = int(3e6)
 DEFAULT_SAVE_FREQ        = 100_000
 DEFAULT_WANDB_PROJECT    = 'nav-ppo'
 DEFAULT_GUI              = True         # 默认评估/演示阶段是否开启 GUI
-DEFAULT_STOP_REWARD      = 1500000.0    # PPO 停训练的回报阈值
+DEFAULT_STOP_REWARD      = 15000.0    # PPO 停训练的回报阈值
 DEFAULT_LOG_INTERVAL     = 100          # 每 N 次 rollout 打一次 TensorBoard/Wandb 日志
 DEFAULT_EVAL_EPISODES    = 5            # evaluate_policy 时每次评估的回合数
 DEFAULT_EVAL_FREQ        = 1000         # EvalCallback 的评估频率
@@ -135,5 +135,9 @@ if __name__ == '__main__':
     parser.add_argument('--run_name', default=None, type=str, help='wandb run 名称')
     parser.add_argument('--project', default=DEFAULT_WANDB_PROJECT, type=str)
     parser.add_argument('--entity',  default=None, type=str)
-    ARGS = parser.parse_args()
-    main(**vars(ARGS))
+    args = parser.parse_args()
+    main(demo_gui=args.demo_gui,
+         wandb_flag = args.wandb_flag,
+         project = args.project,
+         entity = args.entity,
+         run_name = args.run_name)
