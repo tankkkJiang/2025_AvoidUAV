@@ -17,7 +17,9 @@ DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
 DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
-DEFAULT_MAX_EPISODE_SEC    = 20      # 单集最长秒数
+DEFAULT_MAX_EPISODE_SEC    = 100      # 单集最长秒数
+DEFAULT_CTRL_FREQ          = 24      # 每秒控制步数 (BaseRLAviary.ctrl_freq = 24)
+DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
 DEFAULT_MAX_VEL_MPS        = 3.0     # 最大速度 (m/s)
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
@@ -50,6 +52,7 @@ class NavRLAviary(BaseRLAviary):
                  n_dyn_obs: int = DEFAULT_N_DYN_OBS,
                  goal_tol: float = DEFAULT_GOAL_TOL_DIST,
                  max_episode_sec: int = DEFAULT_MAX_EPISODE_SEC,
+                 ctrl_freq: int = DEFAULT_CTRL_FREQ,
                  enable_static_obs: bool = DEFAULT_ENABLE_STATIC_OBS,
                  num_static_obs: int = DEFAULT_NUM_STATIC_OBS,
                  debug: bool = DEFAULT_DEBUG,
@@ -60,6 +63,7 @@ class NavRLAviary(BaseRLAviary):
         self.N_D = n_dyn_obs
         self.goal_tol = goal_tol
         self.EPISODE_SEC = max_episode_sec
+        self.CTRL_FREQ = ctrl_freq
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -92,6 +96,7 @@ class NavRLAviary(BaseRLAviary):
                          num_drones=num_drones,
                          obs=ObservationType.KIN,
                          act=ActionType.VEL,
+                         ctrl_freq=self.CTRL_FREQ,
                          **base_kwargs)
 
         # 预计算光线单位方向 (body frame)
