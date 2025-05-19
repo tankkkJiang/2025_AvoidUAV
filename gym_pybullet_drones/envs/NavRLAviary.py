@@ -40,6 +40,10 @@ DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
 DEFAULT_SAMPLING_RANGE     = 25.0    # 50×50 m 场地的一半
 
+# 静态障碍参数
+DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
+DEFAULT_ENABLE_STATIC_OBS     = True    # 是否启用随机静态障碍物
+DEFAULT_NUM_STATIC_OBS        = 7       # 默认静态障碍物个数
 
 # 奖励权重 λ_i
 LAMBDA_VEL     = 1.0
@@ -61,6 +65,8 @@ class NavRLAviary(BaseRLAviary):
                  n_dyn_obs: int = DEFAULT_N_DYN_OBS,
                  goal_tol: float = DEFAULT_GOAL_TOL_DIST,
                  max_episode_sec: int = DEFAULT_MAX_EPISODE_SEC,
+                 enable_static_obs: bool = DEFAULT_ENABLE_STATIC_OBS,
+                 num_static_obs: int = DEFAULT_NUM_STATIC_OBS,
                  **base_kwargs):
         # 保存自定义参数
         self.N_H = n_h
@@ -75,8 +81,14 @@ class NavRLAviary(BaseRLAviary):
         # 用于奖励计算的上一步速度缓存
         self.prev_vel_world = np.zeros(3)
 
-        self.P_s = np.zeros(3)             # 起点占位
-        self.P_g = np.array([1., 0., 0.])  # 目标占位，避免零向量除以 0
+        # 起点占位；目标占位，避免零向量除以 0
+        self.P_s = np.zeros(3)
+        self.P_g = np.array([1., 0., 0.])
+
+        # 静态障碍
+        self._static_obstacle_ids: List[int] = []
+        self.enable_static_obs = enable_static_obs
+        self.num_static_obs = num_static_obs
 
         # 调用父类构造函数 (obs=KIN, act=VEL)
         super().__init__(drone_model=drone_model,
@@ -96,12 +108,19 @@ class NavRLAviary(BaseRLAviary):
 
     def reset(self, seed: int | None = None, options=None):  # noqa: D401
         """重置环境：随机起点 Ps 与目标 Pg，并建立目标坐标系。"""
-        # 1. 删除上一集的标记
+        # 删除上一集 episode 的标记
         if self._start_text_id is not None:
             p.removeUserDebugItem(self._start_text_id, physicsClientId=self.CLIENT)
         if self._goal_text_id is not None:
             p.removeUserDebugItem(self._goal_text_id,  physicsClientId=self.CLIENT)
 
+        # 删除旧的静态障碍
+        if self.enable_static_obs:
+            for oid in self._static_obstacle_ids:
+                p.removeBody(oid, physicsClientId=self.CLIENT)
+            self._static_obstacle_ids.clear()
+
+        # 父类 reset
         obs, info = super().reset(seed=seed, options=options)
 
         # 取当前无人机位置作为 Ps
@@ -111,6 +130,10 @@ class NavRLAviary(BaseRLAviary):
         # 随机采样目标 Pg
         dx, dy = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
         self.P_g = self.P_s + np.array([dx, dy, 0])  # 与起点同高
+
+        # 添加随机静态障碍
+        if self.enable_static_obs:
+            self._add_static_obstacles()
 
         # 预计算 goal frame 旋转矩阵 (body/world → goal)
         fg = self.P_g - self.P_s
@@ -286,3 +309,19 @@ class NavRLAviary(BaseRLAviary):
 
     def _postAction(self):
         self.step_counter += 1  # 追踪当前步数
+
+
+    # ----------- 辅助方法 -----------
+    def _add_static_obstacles(self):
+        """在起点范围内随机生成若干静态方块障碍物。"""
+        num = np.random.randint(5, 10)
+        for _ in range(num):
+            x, y = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
+            z = 0.5
+            oid = p.loadURDF(
+                "cube.urdf",
+                basePosition=[self.P_s[0] + x, self.P_s[1] + y, z],
+                globalScaling=1.0,
+                physicsClientId=self.CLIENT
+            )
+            self._static_obstacle_ids.append(oid)
