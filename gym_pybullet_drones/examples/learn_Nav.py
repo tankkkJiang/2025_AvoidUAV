@@ -30,11 +30,12 @@ DEFAULT_OUTPUT_DIR    = 'nav_results'
 DEFAULT_TOTAL_STEPS   = int(3e6)
 DEFAULT_SAVE_FREQ     = 10_000
 DEFAULT_WANDB_PROJECT = 'nav-ppo'
+DEFAULT_GUI           = True   # 默认评估/演示阶段是否开启 GUI
 
 # ----------------------------------------------
 
 def main(local: bool = True,
-         gui: bool = True,
+         demo_gui: bool = DEFAULT_GUI,
          wandb_flag: bool = True,
          project: str = DEFAULT_WANDB_PROJECT,
          entity: str | None = None,
@@ -83,33 +84,44 @@ def main(local: bool = True,
 
     # ============ 5. 训练 =========================
     model.learn(total_timesteps=DEFAULT_TOTAL_STEPS, callback=callbacks)
-
-    model.save(os.path.join(out_dir, 'final_model.zip'))
+    # 保存模型并打印路径
+    save_path = os.path.join(out_dir, 'final_model.zip')
+    model.save(save_path)
+    print(f"[INFO] 模型已保存至: {save_path}")
 
     # ============ 6. 评估和演示 ===================
-    test_env = NavRLAviary(gui=gui)
-    obs, _ = test_env.reset()
-    done = False
-    ep_reward = 0.0
-    while not done:
-        action, _ = model.predict(obs, deterministic=True)
-        obs, reward, terminated, truncated, _ = test_env.step(action)
-        ep_reward += reward
-        if gui:
-            test_env.render()
-        done = terminated or truncated
-    print('[INFO] Test episode reward:', ep_reward)
+    test_env = NavRLAviary(gui=demo_gui)
+    while True:
+        obs, _ = test_env.reset()
+        done = False
+        ep_reward = 0.0
+        while not done:
+            action, _ = model.predict(obs, deterministic=True)
+            obs, reward, terminated, truncated, _ = test_env.step(action)
+            ep_reward += reward
+            if demo_gui:
+                test_env.render()
+            done = terminated or truncated
+
+        print(f"[INFO] 本次演示回合奖励: {ep_reward:.2f}")
+        if wandb_flag:
+            wandb.log({'eval/episode_reward': ep_reward})
+
+        cmd = input("按回车键再演示一次，输入 'exit' 并回车退出: ")
+        if cmd.strip().lower() == 'exit':
+            break
+
+    test_env.close()
     if wandb_flag:
-        wandb.log({'eval/episode_reward': ep_reward})
         wandb.finish()
 
 # -------------------- CLI ----------------------
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--local', default=True, type=bool, help='本地长训练')
-    parser.add_argument('--gui',   default=True, type=bool, help='是否可视化测试')
+    parser.add_argument('--demo_gui',   default=True, type=bool, help='是否可视化测试')
     parser.add_argument('--wandb', default=True, type=bool, help='启用 wandb')
     parser.add_argument('--project', default=DEFAULT_WANDB_PROJECT, type=str)
     parser.add_argument('--entity',  default=None, type=str)
     args = parser.parse_args()
-    main(local=args.local, gui=args.gui, wandb_flag=args.wandb, project=args.project, entity=args.entity)
+    main(local=args.local, demo_gui=args.demo_gui, wandb_flag=args.wandb, project=args.project, entity=args.entity)
