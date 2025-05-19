@@ -23,7 +23,7 @@ import wandb
 from gym_pybullet_drones.utils.wandb_callback import WandbCallback
 
 # 导入自定义环境
-from NavRLAviary import NavRLAviary
+from gym_pybullet_drones.envs.NavRLAviary import NavRLAviary
 
 # ------------------ 默认参数 ------------------
 DEFAULT_OUTPUT_DIR    = 'nav_results'

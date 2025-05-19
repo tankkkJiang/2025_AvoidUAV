@@ -7,4 +7,8 @@
 ```bash
 git clone https://github.com/tankkkJiang/2025_AvoidUAV.git
 cd 2025_AvoidUAV
+
+git pull origin main
+
+pip install -e .
 ```
