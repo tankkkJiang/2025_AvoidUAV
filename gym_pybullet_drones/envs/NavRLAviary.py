@@ -23,6 +23,7 @@ DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
 DEFAULT_SAMPLING_RANGE     = 25.0    # 50×50 m 场地的一半
+DEFAULT_DEBUG              = True    # 方便检查gui
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
@@ -51,6 +52,7 @@ class NavRLAviary(BaseRLAviary):
                  max_episode_sec: int = DEFAULT_MAX_EPISODE_SEC,
                  enable_static_obs: bool = DEFAULT_ENABLE_STATIC_OBS,
                  num_static_obs: int = DEFAULT_NUM_STATIC_OBS,
+                 debug: bool = DEFAULT_DEBUG,
                  **base_kwargs):
         # 保存自定义参数
         self.N_H = n_h
@@ -73,6 +75,8 @@ class NavRLAviary(BaseRLAviary):
         self._static_obstacle_ids: List[int] = []
         self.enable_static_obs = enable_static_obs
         self.num_static_obs = num_static_obs
+
+        self.DEBUG = debug
 
         # 用来存放当前 step 各子奖励
         self._reward_parts: dict = {
@@ -106,7 +110,6 @@ class NavRLAviary(BaseRLAviary):
             p.removeUserDebugItem(self._start_text_id, physicsClientId=self.CLIENT)
         if self._goal_text_id is not None:
             p.removeUserDebugItem(self._goal_text_id,  physicsClientId=self.CLIENT)
-
         # 删除旧的静态障碍
         if self.enable_static_obs:
             for oid in self._static_obstacle_ids:
@@ -119,10 +122,11 @@ class NavRLAviary(BaseRLAviary):
         # 取当前无人机位置作为 Ps
         state = self._getDroneStateVector(0)
         self.P_s = state[0:3].copy()
-
         # 随机采样目标 Pg
         dx, dy = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
         self.P_g = self.P_s + np.array([dx, dy, 0])  # 与起点同高
+        if self.DEBUG:
+            print(f"\n[RESET] P_s = {self.P_s},  P_g = {self.P_g}")
 
         # 添加随机静态障碍
         if self.enable_static_obs:
