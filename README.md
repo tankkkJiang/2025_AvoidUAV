@@ -53,8 +53,25 @@ pip install -e .
 ```
 
 ## 3. 关键环境和代码
-环境请参考：`NavRLAviary.py`
-训练请参考：`learn_Nar.py`
+环境请参考：`NavRLAviary.py`；训练请参考：`learn_Nav.py`
+
+先检查并去除原有虚拟显示：
+```bash
+ps aux | grep Xvfb
+kill <PID>
+```
+
+使用下述指令启动 Xvfb + x11vnc   (在同一个终端或后台启动)
+```bash
+Xvfb :4 -screen 0 1280x720x24 & 
+x11vnc -display :4 -rfbport 44445 -nopw &
+export DISPLAY=:4
+```
+
+然后运行：
+```bash
+python3 learnNav.py
+```
 
 ## 参考资料
 https://github.com/Zhefan-Xu/NavRL?tab=readme-ov-file#V-Citation-and-Reference
