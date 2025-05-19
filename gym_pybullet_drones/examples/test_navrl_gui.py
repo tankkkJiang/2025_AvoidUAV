@@ -6,6 +6,7 @@ import time
 import numpy as np
 
 from gym_pybullet_drones.envs.NavRLAviary import NavRLAviary
+from gym_pybullet_drones.utils.enums import DroneModel
 
 try:
     from stable_baselines3 import PPO
