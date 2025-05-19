@@ -23,7 +23,7 @@ class BaseRLAviary(BaseAviary):
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
                  pyb_freq: int = 240,
-                 ctrl_freq: int = 240,
+                 ctrl_freq: int = 24,
                  gui=False,
                  record=False,
                  obs: ObservationType=ObservationType.KIN,
