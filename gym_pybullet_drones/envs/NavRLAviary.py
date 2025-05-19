@@ -276,3 +276,16 @@ class NavRLAviary(BaseRLAviary):
 
     def _postAction(self):
         self.step_counter += 1  # 追踪当前步数
+
+    def _computeInfo(self):
+        """返回与导航相关的实时信息，可用于调试或评估。"""
+        state = self._getDroneStateVector(0)
+        dist_to_goal = float(np.linalg.norm(self.P_g - state[0:3]))
+        return {
+            "step": int(self.step_counter),
+            "distance_to_goal": dist_to_goal
+        }
+
+    def _computeTruncated(self):
+        """超时截断：到达最大步数即结束。"""
+        return self.step_counter >= self.EPISODE_SEC * self.CTRL_FREQ
