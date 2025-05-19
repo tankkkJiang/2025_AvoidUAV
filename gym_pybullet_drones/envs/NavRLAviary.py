@@ -102,6 +102,13 @@ class NavRLAviary(BaseRLAviary):
         self._goal_text_id  = None
 
     # ------------------------ Episode 管理 ------------------------
+    def step(self, action):
+        obs, reward, terminated, truncated, info = super().step(action)
+        if self.DEBUG and (terminated or truncated):
+            reason = "GOAL" if terminated else "TIMEOUT"
+            print(f"[EPISODE END] reason={reason}  steps={self.step_counter}  dist={info['distance_to_goal']:.2f}")
+        return obs, reward, terminated, truncated, info
+
 
     def reset(self, seed: int | None = None, options=None):  # noqa: D401
         """重置环境：随机起点 Ps 与目标 Pg，并建立目标坐标系。"""
