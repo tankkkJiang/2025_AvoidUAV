@@ -1,5 +1,4 @@
-# NavRLAviary.py
-# 无人机导航 RL 环境（简化 NavRL 版）
+# ./envs/NavRLAviary.py
 
 """NavRL‑style 训练环境，基于 gym‑pybullet‑drones 的 BaseRLAviary。
 
@@ -39,6 +38,7 @@ DEFAULT_MAX_VEL_MPS        = 3.0     # 最大速度 (m/s)
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
+DEFAULT_SAMPLING_RANGE     = 25.0    # 50×50 m 场地的一半
 
 
 # 奖励权重 λ_i
@@ -70,10 +70,13 @@ class NavRLAviary(BaseRLAviary):
         self.EPISODE_SEC = max_episode_sec
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
-        self.SAMPLING_RANGE = 250.0   # 50×50 平方米 → 边长一半 25
+        self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
 
         # 用于奖励计算的上一步速度缓存
         self.prev_vel_world = np.zeros(3)
+
+        self.P_s = np.zeros(3)             # 起点占位
+        self.P_g = np.array([1., 0., 0.])  # 目标占位，避免零向量除以 0
 
         # 调用父类构造函数 (obs=KIN, act=VEL)
         super().__init__(drone_model=drone_model,

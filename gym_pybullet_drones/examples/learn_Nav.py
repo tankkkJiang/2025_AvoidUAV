@@ -1,5 +1,4 @@
-# ============================= learn_Nav.py ==============================
-
+# ./examples/learn_Nav.py
 import argparse
 import os
 from datetime import datetime
