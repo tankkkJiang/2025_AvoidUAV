@@ -1,21 +1,5 @@
 # ./envs/NavRLAviary.py
 
-"""NavRL‑style 训练环境，基于 gym‑pybullet‑drones 的 BaseRLAviary。
-
-主要特性
----------
-* **连续 4 维动作**：v_x, v_y, v_z, ω_yaw，对应 ActionType.VEL
-* **观测**：
-  - S_int  (5)   ‑ 目标方向单位向量(3) + 与目标距离(1) + 无人机速度(1 在此按 V_r.xy 模长简化)
-  - S_dyn  (N_DYN_OBS * 8)   ‑ 未启用，全部填 0；接口保留
-  - S_stat (N_H * N_V)       ‑ 激光射线距离，以 body frame 表示
-  - 最近 ACTION_BUFFER_SIZE 步动作（与父类保持一致）
-* **奖励**：公式 (8)–(12) 全部实现，可通过 λ_i 进行加权
-
-如需完整 NavRL 功能，只需替换 `_get_dynamic_obstacles()` 部分并根据实际场景
-调整光线投射函数 `_cast_static_rays()` 即可。
-"""
-
 from __future__ import annotations
 
 import math
