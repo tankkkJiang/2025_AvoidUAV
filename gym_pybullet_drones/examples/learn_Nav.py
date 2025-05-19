@@ -20,7 +20,8 @@ DEFAULT_OUTPUT_DIR    = 'nav_results'
 DEFAULT_TOTAL_STEPS   = int(3e6)
 DEFAULT_SAVE_FREQ     = 10_000
 DEFAULT_WANDB_PROJECT = 'nav-ppo'
-DEFAULT_GUI           = True   # 默认评估/演示阶段是否开启 GUI
+DEFAULT_GUI           = True        # 默认评估/演示阶段是否开启 GUI
+DEFAULT_STOP_REWARD   = 1500000.0   # PPO 停训练的回报阈值
 
 # ----------------------------------------------
 
@@ -56,7 +57,7 @@ def main(local: bool = True,
     # ============ 4. 定义模型 & 回调 =============
     model = PPO('MlpPolicy', train_env, verbose=1, tensorboard_log=out_dir+'/tb')
 
-    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=150.0, verbose=1)
+    stop_callback = StopTrainingOnRewardThreshold(reward_threshold=DEFAULT_STOP_REWARD, verbose=1)
     eval_callback = EvalCallback(eval_env,
                                  best_model_save_path=out_dir,
                                  log_path=out_dir,
@@ -94,8 +95,8 @@ def main(local: bool = True,
             done = terminated or truncated
 
         print(f"[INFO] 本次演示回合奖励: {ep_reward:.2f}")
-        if wandb_flag:
-            wandb.log({'eval/episode_reward': ep_reward})
+        # if wandb_flag:
+        #     wandb.log({'eval/episode_reward': ep_reward})
 
         cmd = input("按回车键再演示一次，输入 'exit' 并回车退出: ")
         if cmd.strip().lower() == 'exit':
