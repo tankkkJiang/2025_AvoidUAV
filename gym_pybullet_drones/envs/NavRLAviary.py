@@ -31,7 +31,7 @@ DEFAULT_NUM_STATIC_OBS        = 7       # 默认静态障碍物个数
 
 # 奖励权重 λ_i
 LAMBDA_VEL     = 1.0
-LAMBDA_SS      = 1.0
+LAMBDA_SS      = 0.1
 LAMBDA_DS      = 1.0
 LAMBDA_SMOOTH  = 0.2
 LAMBDA_HEIGHT  = 0.1
