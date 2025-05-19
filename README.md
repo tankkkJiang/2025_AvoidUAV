@@ -1,4 +1,4 @@
-# AvoidUAV
+# AvoidUAV: Realize navigation and obstacle avoidance for UAVs in dynamic environments
 
 ## 1. 实现目标
 
@@ -28,7 +28,6 @@ pip install -e .
 │   │   ├── BaseAviary.py
 │   │   ├── BaseRLAviary.py
 │   │   ├── NavRLAviary.py
-│   │   ├── HoverAviary.py
 │   │   └── ...  
 │   ├── control/               # 控制器模块，将速度／姿态指令映射为电机推力
 │   │   ├── BaseControl.py
@@ -42,7 +41,6 @@ pip install -e .
 │   └── examples/              # 示例脚本
 │       ├── pid.py
 │       ├── pid_velocity.py
-│       ├── learn.py           # PPO 强化学习示例
 │       ├── learn_navrl.py
 │       ├── test_navrl_gui.py
 │       └── ...
@@ -55,7 +53,10 @@ pip install -e .
 ## 3. 关键环境和代码
 环境请参考：`NavRLAviary.py`；训练请参考：`learn_Nav.py`
 
-先检查并去除原有虚拟显示：
+
+如果在本地运行无需进行该部分配置。
+
+在无头服务器（没有 X Server）的环境下想要可视化，需要开启虚拟显示。先检查并去除原有虚拟显示：
 ```bash
 ps aux | grep Xvfb
 kill <PID>
@@ -71,6 +72,11 @@ export DISPLAY=:4
 然后运行：
 ```bash
 python3 learnNav.py
+```
+
+如果想查看训练过程的gui界面进行检查：
+```bash
+python3 test_navrl_gui.py
 ```
 
 ## 参考资料
