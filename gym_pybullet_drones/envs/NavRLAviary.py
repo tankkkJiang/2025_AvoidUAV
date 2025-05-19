@@ -90,6 +90,15 @@ class NavRLAviary(BaseRLAviary):
         self.enable_static_obs = enable_static_obs
         self.num_static_obs = num_static_obs
 
+        # 用来存放当前 step 各子奖励
+        self._reward_parts: dict = {
+            "r_vel": 0.0,
+            "r_ss": 0.0,
+            "r_ds": 0.0,
+            "r_smooth": 0.0,
+            "r_height": 0.0,
+        }
+
         # 调用父类构造函数 (obs=KIN, act=VEL)
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
@@ -281,7 +290,20 @@ class NavRLAviary(BaseRLAviary):
 
         reward = (LAMBDA_VEL * r_vel + LAMBDA_SS * r_ss + LAMBDA_DS * r_ds +
                   LAMBDA_SMOOTH * r_smooth + LAMBDA_HEIGHT * r_height)
-        return reward
+
+        self._reward_parts = {  # <— 新增
+            "r_vel": r_vel,
+            "r_ss": r_ss,
+            "r_ds": r_ds,
+            "r_smooth": r_smooth,
+            "r_height": r_height,
+        }
+
+        return (LAMBDA_VEL * r_vel
+            + LAMBDA_SS * r_ss
+            + LAMBDA_DS * r_ds
+            + LAMBDA_SMOOTH * r_smooth
+            + LAMBDA_HEIGHT * r_height)
 
     def _computeTerminated(self) -> bool:
         """
@@ -297,7 +319,8 @@ class NavRLAviary(BaseRLAviary):
         dist_to_goal = float(np.linalg.norm(self.P_g - state[0:3]))
         return {
             "step": int(self.step_counter),
-            "distance_to_goal": dist_to_goal
+            "distance_to_goal": dist_to_goal,
+            **self._reward_parts
         }
 
     def _computeTruncated(self):

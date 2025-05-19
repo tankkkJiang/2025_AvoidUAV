@@ -7,7 +7,7 @@ import numpy as np
 import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold, BaseCallback
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 
@@ -23,12 +23,29 @@ DEFAULT_TOTAL_STEPS      = int(3e6)
 DEFAULT_SAVE_FREQ        = 100_000
 DEFAULT_WANDB_PROJECT    = 'nav-ppo'
 DEFAULT_GUI              = True         # 默认评估/演示阶段是否开启 GUI
-DEFAULT_STOP_REWARD      = 15000.0    # PPO 停训练的回报阈值
+DEFAULT_STOP_REWARD      = 15000.0      # PPO 停训练的回报阈值
 DEFAULT_LOG_INTERVAL     = 100          # 每隔 log_interval 个 timestep看到汇总
 DEFAULT_EVAL_EPISODES    = 5            # evaluate_policy 时每次评估的回合数
 DEFAULT_EVAL_FREQ        = 1000         # EvalCallback 的评估频率
 
 # ----------------------------------------------
+
+
+class RewardPartLogger(BaseCallback):
+    """
+    每 step 从 info 里取出 r_vel…r_height，打到 wandb
+    """
+    def _on_step(self) -> bool:
+        infos = self.locals.get("infos", [])
+        if not infos:
+            return True
+        info0 = infos[0]
+        # 提取五项子奖励
+        keys = ("r_vel","r_ss","r_ds","r_smooth","r_height")
+        metrics = {f"reward/{k}": info0.get(k, 0.0) for k in keys}
+        wandb.log(metrics, step=self.num_timesteps)
+        return True
+
 
 def main(demo_gui: bool = DEFAULT_GUI,
          wandb_flag: bool = True,
@@ -85,7 +102,7 @@ def main(demo_gui: bool = DEFAULT_GUI,
                               save_path=out_dir+'/wandb_ckpt',
                               verbose=1) if wandb_flag else None)
 
-    callbacks = [eval_callback]
+    callbacks = [eval_callback, RewardPartLogger()]
     if wandb_cb:
         callbacks.append(wandb_cb)
 
