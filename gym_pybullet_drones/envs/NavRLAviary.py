@@ -260,22 +260,13 @@ class NavRLAviary(BaseRLAviary):
                   LAMBDA_SMOOTH * r_smooth + LAMBDA_HEIGHT * r_height)
         return reward
 
-    def _computeTerminated(self):
-        # 成功：到达目标
+    def _computeTerminated(self) -> bool:
+        """
+        terminated=True   → 任务本身结束（例如到达目标或碰撞）
+        """
         state = self._getDroneStateVector(0)
-        P_r_W = state[0:3]
-        dist = np.linalg.norm(self.P_g - P_r_W)
-        success = dist < self.goal_tol
-
-        # 超时
-        timeout = self.step_counter >= self.EPISODE_SEC * self.CTRL_FREQ
-
-        return success or timeout
-
-    # ----------- PyBullet step 钩子 (父类 step 会调用) -----------
-
-    def _postAction(self):
-        self.step_counter += 1  # 追踪当前步数
+        dist = np.linalg.norm(self.P_g - state[0:3])
+        return dist < self.goal_tol  # 仅成功条件
 
     def _computeInfo(self):
         """返回与导航相关的实时信息，可用于调试或评估。"""
@@ -289,3 +280,9 @@ class NavRLAviary(BaseRLAviary):
     def _computeTruncated(self):
         """超时截断：到达最大步数即结束。"""
         return self.step_counter >= self.EPISODE_SEC * self.CTRL_FREQ
+
+
+    # ----------- PyBullet step 钩子 (父类 step 会调用) -----------
+
+    def _postAction(self):
+        self.step_counter += 1  # 追踪当前步数
