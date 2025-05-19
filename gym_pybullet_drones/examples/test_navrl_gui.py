@@ -36,7 +36,7 @@ def random_play(env: NavRLAviary):
                 obs, reward, terminated, truncated, info = env.step(action)
                 # 控制步速，使视觉效果可见
                 time.sleep(1.0 / env.CTRL_FREQ)
-            print(f"[Episode {episode}]")
+            print(f"[Episode {episode}] over")
     except KeyboardInterrupt:
         print("\n随机测试已手动终止。")
     finally:
