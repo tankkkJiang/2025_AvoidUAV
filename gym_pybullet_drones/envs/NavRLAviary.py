@@ -362,6 +362,10 @@ class NavRLAviary(BaseRLAviary):
     def _postAction(self):
         self.step_counter += 1  # 追踪当前步数
 
+    # ----------- 重写父类 -----------
+    def _preprocessAction(self, action):
+        # action ∈ [-1,1]^4，直接当成 normalized motor command
+        return self._normalizedActionToRPM(np.array(action).reshape(4,))
 
     # ----------- 辅助方法 -----------
     def _add_static_obstacles(self):
