@@ -36,7 +36,7 @@ class DSLPIDControl(BaseControl):
             exit()
         # 位置环 PID 参数 （前向），尝试提高pid横向增益。
         # self.P_COEFF_FOR = np.array([.4, .4, 1.25])
-        self.P_COEFF_FOR = np.array([4, 4, 1.25])
+        self.P_COEFF_FOR = np.array([1, 1, 1.25])
         self.I_COEFF_FOR = np.array([.05, .05, .05])
         self.D_COEFF_FOR = np.array([.2, .2, .5])
         # 姿态环 PID 参数（扭矩）
