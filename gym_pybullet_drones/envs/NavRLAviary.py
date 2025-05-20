@@ -28,7 +28,7 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 60.0        # xy最大速度 (m/s)
+DEFAULT_MAX_VEL_MPS        = 5.0         # xy最大速度 (m/s)，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 2.0         # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 DEFAULT_SPEED_RATIO        = 0.8         # φ_speed，决定速度幅值的固定系数 (0~1)
@@ -327,13 +327,13 @@ class NavRLAviary(BaseRLAviary):
             state = self._getDroneStateVector(k)
             cur_yaw = state[9]
 
-            # -------- 反归一化线速度方向 --------
+            # -------- 线速度方向 --------
             v_hat = action[k, 0:3]  # [-1,1]^3
-            if np.linalg.norm(v_hat) > 1e-3:
-                v_dir = v_hat / np.linalg.norm(v_hat)
-            else:  # 零向量容错
-                v_dir = np.zeros(3)
-            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_dir
+            # if np.linalg.norm(v_hat) > 1e-3:
+            #     v_dir = v_hat / np.linalg.norm(v_hat)
+            # else:  # 零向量容错
+            #     v_dir = np.zeros(3)
+            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_hat
 
             # -------- 反归一化偏航角速度 --------
             omega_hat = float(np.clip(action[k, 3], -1., 1.))  # [-1,1]
