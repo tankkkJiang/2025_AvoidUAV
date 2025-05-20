@@ -18,7 +18,7 @@ DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15�
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
 DEFAULT_MAX_EPISODE_SEC    = 100      # 单集最长秒数
-DEFAULT_CTRL_FREQ          = 24      # 每秒控制步数 (BaseRLAviary.ctrl_freq = 24)
+DEFAULT_CTRL_FREQ          = 240      # 每秒控制步数 (BaseRLAviary.ctrl_freq = 24)
 DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
