@@ -99,6 +99,12 @@ class NavRLAviary(BaseRLAviary):
                          ctrl_freq=self.CTRL_FREQ,
                          **base_kwargs)
 
+
+        if self.DEBUG:
+            # 打印动作空间和观测空间的上下界，确认范围是否合理
+            print(f"[DEBUG] action_space: {self.action_space}")
+            print(f"[DEBUG] observation_space: {self.observation_space}")
+
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
 
@@ -108,6 +114,10 @@ class NavRLAviary(BaseRLAviary):
 
     # ------------------------ Episode 管理 ------------------------
     def step(self, action):
+        if self.DEBUG:
+            act = np.array(action).reshape(-1)
+            print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION ── {act}")
+
         obs, reward, terminated, truncated, info = super().step(action)
         if self.DEBUG and (terminated or truncated):
             reason = "GOAL" if terminated else "TIMEOUT"
