@@ -11,14 +11,15 @@ import pybullet as p
 
 from gym_pybullet_drones.envs.BaseRLAviary import BaseRLAviary
 from gym_pybullet_drones.utils.enums import ActionType, ObservationType, DroneModel, Physics
+from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
 # ======================== 全局 / 默认参数 ========================
 DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
 DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
-DEFAULT_MAX_EPISODE_SEC    = 1000      # 单集最长秒数
-DEFAULT_CTRL_FREQ          = 240      # 每秒控制步数 (BaseAviary.ctrl_freq = 240)
+DEFAULT_MAX_EPISODE_SEC    = 1000    # 单集最长秒数
+DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
 DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
@@ -68,6 +69,7 @@ class NavRLAviary(BaseRLAviary):
         self.goal_tol = goal_tol
         self.EPISODE_SEC = max_episode_sec
         self.CTRL_FREQ = ctrl_freq
+        self.DEBUG = debug
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -84,7 +86,7 @@ class NavRLAviary(BaseRLAviary):
         self.enable_static_obs = enable_static_obs
         self.num_static_obs = num_static_obs
 
-        self.DEBUG = debug
+
 
         # 用来存放当前 step 各子奖励
         self._reward_parts: dict = {
@@ -107,11 +109,15 @@ class NavRLAviary(BaseRLAviary):
                          ctrl_freq=self.CTRL_FREQ,
                          **base_kwargs)
 
+        # 创建每架机对应的 DSLPIDControl
+        if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
+            self.ctrl = [DSLPIDControl(drone_model=DroneModel.CF2X)
+                         for _ in range(num_drones)]
+        else:
+            raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
 
-        if self.DEBUG:
-            # 打印动作空间和观测空间的上下界，确认范围是否合理
-            print(f"[DEBUG] action_space: {self.action_space}")
-            print(f"[DEBUG] observation_space: {self.observation_space}")
+        # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
+        self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # ≈0.03*V_max(m/s)，与VelocityAviary.py保持一致
 
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
@@ -119,6 +125,12 @@ class NavRLAviary(BaseRLAviary):
         # 用来存上一次 debug 文本的 id
         self._start_text_id = None
         self._goal_text_id  = None
+
+
+        if self.DEBUG:
+            # 打印动作空间和观测空间的上下界，确认范围是否合理
+            print(f"[DEBUG] action_space: {self.action_space}")
+            print(f"[DEBUG] observation_space: {self.observation_space}")
 
     # ------------------------ Episode 管理 ------------------------
     def step(self, action):
@@ -288,6 +300,50 @@ class NavRLAviary(BaseRLAviary):
         high = np.inf * np.ones((1, obs_dim), dtype=np.float32)
         from gymnasium import spaces
         return spaces.Box(low=low, high=high, dtype=np.float32)
+
+    # ------------------------ Action space -----------------------
+    def _actionSpace(self):
+        """
+        与 VelocityAviary 相同：每个动作 = [vx, vy, vz, ϕ]，最后一维为速度大小占最大速度 (0~1)。方向分量限制在 [-1,1]，ϕ∈[0,1]。
+        """
+        from gymnasium import spaces
+        lo = np.array([[-1.0, -1.0, -1.0, 0.0]])
+        hi = np.array([[1.0, 1.0, 1.0, 1.0]])
+
+        return spaces.Box(low=lo, high=hi, dtype=np.float32)
+
+    # ------------------------ Action → RPM ------------------------
+    def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
+        """
+        将 RL 给出的速度指令转换为 4 路电机转速 (RPM)。
+        参数
+        ----
+            action : ndarray, shape (NUM_DRONES, 4)
+            [vx, vy, vz, ϕ]；ϕ ∈ [0,1] 为速度幅值比例。
+        """
+        rpm = np.zeros((self.NUM_DRONES, 4))
+        for k in range(self.NUM_DRONES):
+            # 当前状态向量
+            state = self._getDroneStateVector(k)
+            tgt = action[k]  # [vx,vy,vz,ϕ]
+            vec = tgt[:3]
+            mag = np.linalg.norm(vec) + 1e-6
+            v_dir = vec / mag  # 单位方向
+            v_des = self.SPEED_LIMIT * abs(tgt[3]) * v_dir
+
+            # DSLPIDControl 计算
+            rpm[k, :], _, _ = self.ctrl[k].computeControl(
+                control_timestep = self.CTRL_TIMESTEP,
+                cur_pos = state[0:3],
+                cur_quat = state[3:7],
+                cur_vel = state[10:13],
+                cur_ang_vel = state[13:16],
+                target_pos = state[0:3],  # 不追位置
+                target_rpy = np.array([0, 0, state[9]]),  # 保持当前 yaw
+                target_vel = v_des  # 目标速度
+        )
+
+        return rpm
 
     # ------------------------ Reward & Termination ------------------------
 
