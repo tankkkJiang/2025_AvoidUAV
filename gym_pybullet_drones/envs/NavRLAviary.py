@@ -17,8 +17,8 @@ DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
 DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
-DEFAULT_MAX_EPISODE_SEC    = 100      # 单集最长秒数
-DEFAULT_CTRL_FREQ          = 240      # 每秒控制步数 (BaseRLAviary.ctrl_freq = 24)
+DEFAULT_MAX_EPISODE_SEC    = 1000      # 单集最长秒数
+DEFAULT_CTRL_FREQ          = 240      # 每秒控制步数 (BaseAviary.ctrl_freq = 240)
 DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
@@ -27,7 +27,7 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 3.0      # xy最大速度 (m/s)
+DEFAULT_MAX_VEL_MPS        = 30.0      # xy最大速度 (m/s)
 DEFAULT_MAX_VEL_Z          = 2.0     # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 
