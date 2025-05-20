@@ -28,9 +28,10 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 60.0      # xy最大速度 (m/s)
-DEFAULT_MAX_VEL_Z          = 2.0     # 垂直最大速度
+DEFAULT_MAX_VEL_MPS        = 60.0        # xy最大速度 (m/s)
+DEFAULT_MAX_VEL_Z          = 2.0         # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
+DEFAULT_SPEED_RATIO        = 0.8         # φ_speed，决定速度幅值的固定系数 (0~1)
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
@@ -69,6 +70,7 @@ class NavRLAviary(BaseRLAviary):
         self.goal_tol = goal_tol
         self.EPISODE_SEC = max_episode_sec
         self.CTRL_FREQ = ctrl_freq
+        self.CTRL_TIMESTEP = 1 / self.CTRL_FREQ
         self.DEBUG = debug
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
@@ -309,46 +311,47 @@ class NavRLAviary(BaseRLAviary):
 
     # ------------------------ Action space -----------------------
     def _actionSpace(self):
-        """
-        与 VelocityAviary 相同：每个动作 = [vx, vy, vz, ϕ]，最后一维为速度大小占最大速度 (0~1)。方向分量限制在 [-1,1]，ϕ∈[0,1]。
-        """
+        """动作 = [vx̂, vŷ, vẑ, ω̂yaw]，全维 ∈ [-1,1]."""
         from gymnasium import spaces
-        lo = np.array([[-1.0, -1.0, -1.0, 0.0]])
-        hi = np.array([[1.0, 1.0, 1.0, 1.0]])
-
+        lo = np.array([[-1., -1., -1., -1.]])
+        hi = np.array([[1., 1., 1., 1.]])
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
     # ------------------------ Action → RPM ------------------------
     def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
         """
-        将 RL 给出的速度指令转换为 4 路电机转速 (RPM)。
-        参数
-        ----
-            action : ndarray, shape (NUM_DRONES, 4)
-            [vx, vy, vz, ϕ]；ϕ ∈ [0,1] 为速度幅值比例。
+        将 [vx̂, vŷ, vẑ, ω̂yaw] → 4 电机 RPM.
         """
         rpm = np.zeros((self.NUM_DRONES, 4))
         for k in range(self.NUM_DRONES):
-            # 当前状态向量
             state = self._getDroneStateVector(k)
-            tgt = action[k]  # [vx,vy,vz,ϕ]
-            vec = tgt[:3]
-            mag = np.linalg.norm(vec) + 1e-6
-            v_dir = vec / mag  # 单位方向
-            v_des = self.SPEED_LIMIT * abs(tgt[3]) * v_dir
+            cur_yaw = state[9]
 
-            # DSLPIDControl 计算
+            # -------- 反归一化线速度方向 --------
+            v_hat = action[k, 0:3]  # [-1,1]^3
+            if np.linalg.norm(v_hat) > 1e-3:
+                v_dir = v_hat / np.linalg.norm(v_hat)
+            else:  # 零向量容错
+                v_dir = np.zeros(3)
+            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_dir
+
+            # -------- 反归一化偏航角速度 --------
+            omega_hat = float(np.clip(action[k, 3], -1., 1.))  # [-1,1]
+            omega_des = omega_hat * DEFAULT_MAX_YAW_RATE  # rad/s
+            # 把期望角速度积分成“下一时刻目标偏航角”
+            target_yaw = cur_yaw + omega_des * self.CTRL_TIMESTEP
+
+            # -------- PID 控制求电机 RPM --------
             rpm[k, :], _, _ = self.ctrl[k].computeControl(
-                control_timestep = self.CTRL_TIMESTEP,
-                cur_pos = state[0:3],
-                cur_quat = state[3:7],
-                cur_vel = state[10:13],
-                cur_ang_vel = state[13:16],
-                target_pos = state[0:3],  # 不追位置
-                target_rpy = np.array([0, 0, state[9]]),  # 保持当前 yaw
-                target_vel = v_des  # 目标速度
-        )
-
+                control_timestep=self.CTRL_TIMESTEP,
+                cur_pos=state[0:3],
+                cur_quat=state[3:7],
+                cur_vel=state[10:13],
+                cur_ang_vel=state[13:16],
+                target_pos=state[0:3],                      # 不跟踪位置
+                target_rpy=np.array([0., 0., target_yaw]),  # 只改偏航
+                target_vel=v_des  # 线速度追踪
+            )
         return rpm
 
     # ------------------------ Reward & Termination ------------------------
