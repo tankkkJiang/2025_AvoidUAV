@@ -123,8 +123,8 @@ class NavRLAviary(BaseRLAviary):
     # ------------------------ Episode 管理 ------------------------
     def step(self, action):
         if self.DEBUG:
-            act = np.array(action).reshape(-1)
-            print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION ── {act}")
+            # 原始动作（High-level RL 输出）
+            print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(raw) ── {np.array(action).reshape(-1)}")
 
         obs, reward, terminated, truncated, info = super().step(action)
 
@@ -133,11 +133,13 @@ class NavRLAviary(BaseRLAviary):
             print(f"[EPISODE END] reason={reason}  steps={self.step_counter}  dist={info['distance_to_goal']:.2f}")
             # 3)
         if self.DEBUG:
-            # 打印位置和线速度
+            # 经过 _preprocessAction -> clipped_action 后的 RPM
+            # BaseAviary 会把 last_clipped_action 设为本步最终 RPM
+            print(f"[DEBUG] RPM(applied)    ── {self.last_clipped_action[0].round(1)}")
+            # 当前机体速度
             st = self._getDroneStateVector(0)
-            pos = st[0:3]; vel = st[10:13]
-            print(f"[DEBUG] POS={pos.round(2)}  VEL={vel.round(2)} "
-                  + f"  dist={info['distance_to_goal']:.2f}  r={reward:.3f}")
+            vel = st[10:13]
+            print(f"[DEBUG] VEL(current)    ── {vel.round(3)}")
 
         return obs, reward, terminated, truncated, info
 
