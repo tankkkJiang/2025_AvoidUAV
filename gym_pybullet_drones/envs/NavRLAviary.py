@@ -20,12 +20,16 @@ DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
 DEFAULT_MAX_EPISODE_SEC    = 100      # 单集最长秒数
 DEFAULT_CTRL_FREQ          = 24      # 每秒控制步数 (BaseRLAviary.ctrl_freq = 24)
 DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
-DEFAULT_MAX_VEL_MPS        = 3.0     # 最大速度 (m/s)
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
 DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
+
+# 动作缩放
+DEFAULT_MAX_VEL_MPS        = 3.0     # xy最大速度 (m/s)
+DEFAULT_MAX_VEL_Z          = 2.0     # 垂直最大速度
+DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
@@ -91,6 +95,10 @@ class NavRLAviary(BaseRLAviary):
             "r_height": 0.0,
         }
 
+        # 把初始高度抬到 1 m 左右
+        init_xyzs = np.array([[0.0, 0.0, 1.0]])  # (num_drones,3)
+        base_kwargs.setdefault("initial_xyzs", init_xyzs)
+
         # 调用父类构造函数 (obs=KIN, act=VEL)
         super().__init__(drone_model=drone_model,
                          num_drones=num_drones,
@@ -119,9 +127,18 @@ class NavRLAviary(BaseRLAviary):
             print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION ── {act}")
 
         obs, reward, terminated, truncated, info = super().step(action)
+
         if self.DEBUG and (terminated or truncated):
             reason = "GOAL" if terminated else "TIMEOUT"
             print(f"[EPISODE END] reason={reason}  steps={self.step_counter}  dist={info['distance_to_goal']:.2f}")
+            # 3)
+        if self.DEBUG:
+            # 打印位置和线速度
+            st = self._getDroneStateVector(0)
+            pos = st[0:3]; vel = st[10:13]
+            print(f"[DEBUG] POS={pos.round(2)}  VEL={vel.round(2)} "
+                  + f"  dist={info['distance_to_goal']:.2f}  r={reward:.3f}")
+
         return obs, reward, terminated, truncated, info
 
 
@@ -146,7 +163,7 @@ class NavRLAviary(BaseRLAviary):
         self.P_s = state[0:3].copy()
         # 随机采样目标 Pg
         dx, dy = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
-        self.P_g = self.P_s + np.array([dx, dy, 0])  # 与起点同高
+        self.P_g = self.P_s + np.array([dx, dy, 0.0])  # 与起点同高
         if self.DEBUG:
             print(f"\n[RESET] P_s = {self.P_s},  P_g = {self.P_g}")
 
