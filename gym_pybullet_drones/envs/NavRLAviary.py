@@ -169,14 +169,14 @@ class NavRLAviary(BaseRLAviary):
                 p.removeBody(oid, physicsClientId=self.CLIENT)
             self._static_obstacle_ids.clear()
 
+        self.action_buffer.clear()
+        # 一次性生成 (num_buffer, num_drones, action_dim) 的全零
+        zero_act = np.zeros((self.NUM_DRONES, DEFAULT_ACTION_DIM), dtype=np.float32)
+        for _ in range(self.ACTION_BUFFER_SIZE):
+            self.action_buffer.append(zero_act)
+
         # 父类 reset
         obs, info = super().reset(seed=seed, options=options)
-
-        self.action_buffer.clear()
-        # 用一行零动作填充，每个动作维度为 DEFAULT_ACTION_DIM
-        initial = np.zeros((1, DEFAULT_ACTION_DIM), dtype=np.float32)
-        for _ in range(self.ACTION_BUFFER_SIZE):
-            self.action_buffer.append(initial)
 
         # 取当前无人机位置作为 Ps
         state = self._getDroneStateVector(0)
