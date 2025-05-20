@@ -34,8 +34,9 @@ class DSLPIDControl(BaseControl):
         if self.DRONE_MODEL != DroneModel.CF2X and self.DRONE_MODEL != DroneModel.CF2P:
             print("[ERROR] DSLPIDControl 仅支持 DroneModel.CF2X 或 CF2P")
             exit()
-        # 位置环 PID 参数 （前向）
-        self.P_COEFF_FOR = np.array([.4, .4, 1.25])
+        # 位置环 PID 参数 （前向），尝试提高pid横向增益。
+        # self.P_COEFF_FOR = np.array([.4, .4, 1.25])
+        self.P_COEFF_FOR = np.array([4, 4, 1.25])
         self.I_COEFF_FOR = np.array([.05, .05, .05])
         self.D_COEFF_FOR = np.array([.2, .2, .5])
         # 姿态环 PID 参数（扭矩）
