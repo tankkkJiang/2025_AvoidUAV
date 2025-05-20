@@ -27,14 +27,14 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 10.0      # xy最大速度 (m/s)
+DEFAULT_MAX_VEL_MPS        = 30.0      # xy最大速度 (m/s)
 DEFAULT_MAX_VEL_Z          = 2.0     # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
 DEFAULT_ENABLE_STATIC_OBS     = True    # 是否启用随机静态障碍物
-DEFAULT_NUM_STATIC_OBS        = 7       # 默认静态障碍物个数
+DEFAULT_NUM_STATIC_OBS        = 10       # 默认静态障碍物个数
 
 # 奖励权重 λ_i
 LAMBDA_VEL     = 1.0
