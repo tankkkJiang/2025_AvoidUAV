@@ -24,7 +24,7 @@ DEFAULT_MAX_VEL_MPS        = 3.0     # 最大速度 (m/s)
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
-DEFAULT_SAMPLING_RANGE     = 10.0     # 50×50 m 场地的一半
+DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 静态障碍参数
