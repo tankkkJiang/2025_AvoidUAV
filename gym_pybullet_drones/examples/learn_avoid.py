@@ -16,12 +16,16 @@ from stable_baselines3.common.callbacks import (
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import VecMonitor
+from stable_baselines3.common.vec_env import DummyVecEnv
 
 import wandb
 from gym_pybullet_drones.utils.wandb_callback import WandbCallback
 
 # 导入自定义避障环境
 from gym_pybullet_drones.envs.AvoidAviary import AvoidAviary
+
+import logging
+logging.getLogger('gym_pybullet_drones.envs.BaseAviary').setLevel(logging.WARNING)
 
 # ------------------ 默认参数 ------------------
 DEFAULT_OUTPUT_DIR       = 'avoid_results'
@@ -35,6 +39,10 @@ DEFAULT_EVAL_EPISODES    = 5                # evaluate_policy 时每次评估的
 DEFAULT_EVAL_FREQ        = 1000             # EvalCallback 的评估频率
 DEFAULT_N_ENVS           = 3                # 并行环境数量
 # ----------------------------------------------
+
+def make_env():
+    # 让 make_vec_env 自带 Monitor，并只用 VecMonitor 统计
+    return Monitor(AvoidAviary(gui=False))
 
 class RewardPartLogger(BaseCallback):
     """
@@ -90,20 +98,6 @@ class EpisodeSubrewardLogger(BaseCallback):
                     self.accum[k][i] = 0.0
         return True
 
-class EpisodeReturnLogger(BaseCallback):
-    """
-    每当 Monitor 提供 episode 信息时，将该 episode 的累计回报记录到 wandb：
-    info['episode']['r']
-    """
-    def _on_step(self) -> bool:
-        infos = self.locals.get("infos", [])
-        for info in infos:
-            ep = info.get("episode")
-            if ep is not None:
-                # ep["r"] 是该 episode 的总回报
-                wandb.log({"episode/return": ep["r"]}, step=self.num_timesteps)
-            return True
-
 def main(
     demo_gui: bool = DEFAULT_GUI,
     wandb_flag: bool = True,
@@ -127,7 +121,7 @@ def main(
                 "env": "AvoidAviary",
                 "algo": "PPO",
             },
-            sync_tensorboard=True,
+            sync_tensorboard=False,
         )
 
     # 2. 结果目录
@@ -135,16 +129,14 @@ def main(
     os.makedirs(out_dir, exist_ok=True)
 
     # 3. 创建训练与评估环境
-    env_kwargs = dict(gui=False)  # 训练时关闭 GUI
     # 并行环境：每个子环境都要被 Monitor 包裹，才能产出 info["episode"]
     train_env = make_vec_env(
-        lambda: Monitor(AvoidAviary(gui=False)),
-        n_envs = DEFAULT_N_ENVS,
-        env_kwargs = {}
+        make_env,
+        n_envs=DEFAULT_N_ENVS,
+        vec_env_cls=VecMonitor,  # 直接让 make_vec_env 返回 VecMonitor
     )
-    # VecMonitor 用来让 Monitor 信息在向量化环境里汇总
-    train_env = VecMonitor(train_env)
-    eval_env = Monitor(AvoidAviary(gui=False))
+    eval_env = DummyVecEnv([lambda: AvoidAviary(gui=False)])
+    eval_env = VecMonitor(eval_env)
 
     # 打印空间信息，便于调试
     print('[DEBUG] Obs space', train_env.observation_space)
