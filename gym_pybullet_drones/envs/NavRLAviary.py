@@ -27,7 +27,7 @@ DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
 DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
-DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
+DEFAULT_DEBUG              = False    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
 DEFAULT_MAX_VEL_MPS        = 1.0         # xy最大速度，注意 max_speed_kmh 30.000000
@@ -193,6 +193,7 @@ class NavRLAviary(BaseRLAviary):
         zero_act = np.zeros((self.NUM_DRONES, DEFAULT_ACTION_DIM), dtype=np.float32)
         for _ in range(self.ACTION_BUFFER_SIZE):
             self.action_buffer.append(zero_act)
+        self.last_highlevel_action = np.zeros((self.NUM_DRONES, DEFAULT_ACTION_DIM), dtype=np.float32)
 
         # 父类 reset
         obs, info = super().reset(seed=seed, options=options)
@@ -203,8 +204,10 @@ class NavRLAviary(BaseRLAviary):
         # 随机采样目标 Pg
         dx, dy = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
         self.P_g = self.P_s + np.array([dx, dy, 0.0])  # 与起点同高
+        init_dist = np.linalg.norm(self.P_g - self.P_s)
         if self.DEBUG:
             print(f"\n[RESET] P_s = {self.P_s},  P_g = {self.P_g}")
+            print(f"[RESET] Initial distance = {init_dist:.3f} m")
 
         # 添加随机静态障碍
         if self.enable_static_obs:
@@ -352,7 +355,7 @@ class NavRLAviary(BaseRLAviary):
                 v_hat[1] * DEFAULT_MAX_VEL_MPS,
                 v_hat[2] * DEFAULT_MAX_VEL_Z
             ], dtype=np.float32)
-            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_hat
+            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
 
             # -------- 反归一化偏航角速度 --------
             omega_hat = float(np.clip(action[k, 3], -1., 1.))  # [-1,1]
