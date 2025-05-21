@@ -99,10 +99,10 @@ def run(
     #### Initialize the velocity target ########################
     TARGET_VEL = np.zeros((4,NUM_WP,4))
     for i in range(NUM_WP):
-        TARGET_VEL[0, i, :] = [-0.5, 1, 0, 0.99] if i < (NUM_WP/8) else [0.5, -1, 0, 0.99]
+        TARGET_VEL[0, i, :] = [-5, 1, 0, 0.99] if i < (NUM_WP/8) else [0.5, -1, 0, 0.99]
         TARGET_VEL[1, i, :] = [0, 1, 0, 0.99] if i < (NUM_WP/8+NUM_WP/6) else [0, -1, 0, 0.99]
         TARGET_VEL[2, i, :] = [0.2, 1, 0.2, 0.99] if i < (NUM_WP/8+2*NUM_WP/6) else [-0.2, -1, -0.2, 0.99]
-        TARGET_VEL[3, i, :] = [0, 1, 0.5, 0.99] if i < (NUM_WP/8+3*NUM_WP/6) else [0, -1, -0.5, 0.99]
+        TARGET_VEL[3, i, :] = [0, 1, 5, 0.99] if i < (NUM_WP/8+3*NUM_WP/6) else [0, -1, -0.5, 0.99]
 
     #### Initialize the logger #################################
     logger = Logger(logging_freq_hz=control_freq_hz,
