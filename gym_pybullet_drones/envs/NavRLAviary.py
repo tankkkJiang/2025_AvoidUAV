@@ -345,6 +345,11 @@ class NavRLAviary(BaseRLAviary):
             # 把期望角速度积分成“下一时刻目标偏航角”
             target_yaw = cur_yaw + omega_des * self.CTRL_TIMESTEP
 
+            if self.DEBUG:
+                interval = max(1, self.MAX_STEPS // 10)
+                if self.step_counter % interval == 0:
+                    print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} v_target = {v_des.round(3)}")
+
             # -------- PID 控制求电机 RPM --------
             rpm[k, :], _, _ = self.ctrl[k].computeControl(
                 control_timestep=self.CTRL_TIMESTEP,
