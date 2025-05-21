@@ -30,7 +30,7 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 1.0         # xy最大速度，注意 max_speed_kmh 30.000000
+DEFAULT_MAX_VEL_MPS        = 100.0         # xy最大速度，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 0.5         # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 DEFAULT_SPEED_RATIO        = 1           # φ_speed，决定速度幅值的固定系数 (0~1)
@@ -353,7 +353,7 @@ class NavRLAviary(BaseRLAviary):
                 v_hat[1] * DEFAULT_MAX_VEL_MPS,
                 v_hat[2] * DEFAULT_MAX_VEL_Z
             ], dtype=np.float32)
-            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
+            # v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
 
             # -------- 反归一化偏航角速度 --------
             omega_hat = float(np.clip(action[k, 3], -1., 1.))  # [-1,1]
