@@ -35,8 +35,9 @@ DEFAULT_SPEED_RATIO        = 1           # φ_speed，决定速度幅值的固�
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
-DEFAULT_ENABLE_STATIC_OBS     = True    # 是否启用随机静态障碍物
-DEFAULT_NUM_STATIC_OBS        = 10       # 默认静态障碍物个数
+DEFAULT_SCENARIO              = "simple"   # 可选 "random" | "simple"
+DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
+DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
 
 # 奖励权重 λ_i
 LAMBDA_VEL     = 1.0
@@ -62,6 +63,7 @@ class NavRLAviary(BaseRLAviary):
                  enable_static_obs: bool = DEFAULT_ENABLE_STATIC_OBS,
                  num_static_obs: int = DEFAULT_NUM_STATIC_OBS,
                  debug: bool = DEFAULT_DEBUG,
+                 scenario: str = DEFAULT_SCENARIO,
                  **base_kwargs):
         # 保存自定义参数
         self.N_H = n_h
@@ -73,6 +75,7 @@ class NavRLAviary(BaseRLAviary):
         self.CTRL_TIMESTEP = 1 / self.CTRL_FREQ
         self.DEBUG = debug
         self.MAX_STEPS = self.EPISODE_SEC * self.CTRL_FREQ
+        self.SCENARIO = scenario  # 场景类型
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -439,15 +442,60 @@ class NavRLAviary(BaseRLAviary):
 
     # ----------- 辅助方法 -----------
     def _add_static_obstacles(self):
-        """在起点范围内随机生成若干静态方块障碍物。"""
-        num = np.random.randint(5, 10)
-        for _ in range(num):
-            x, y = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
-            z = 0.5
-            oid = p.loadURDF(
-                "cube.urdf",
-                basePosition=[self.P_s[0] + x, self.P_s[1] + y, z],
-                globalScaling=1.0,
-                physicsClientId=self.CLIENT
-            )
-            self._static_obstacle_ids.append(oid)
+        """根据不同场景在环境中添加静态障碍物。"""
+        if not self.enable_static_obs:
+            return
+
+        match self.SCENARIO:
+            case "simple":
+                # 在起点 Ps 与终点 Pg 的中点放一个方块
+                mid = (self.P_s + self.P_g) / 2.0
+                oid = p.loadURDF(
+                    DEFAULT_OBSTACLE_URDF,
+                    basePosition=[mid[0], mid[1], 0.5],
+                    globalScaling=1.0,
+                    physicsClientId=self.CLIENT
+                )
+                self._static_obstacle_ids.append(oid)
+                if self.DEBUG:
+                    print(f"[DEBUG] simple: placed 1 box at midpoint {mid.tolist()}")
+
+            case "random":
+                # 随机散布 num_static_obs 个方块
+                for _ in range(self.num_static_obs):
+                    dx, dy = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
+                    pos = [self.P_s[0] + dx, self.P_s[1] + dy, 0.5]
+                    oid = p.loadURDF(
+                        DEFAULT_OBSTACLE_URDF,
+                        basePosition=pos,
+                        globalScaling=1.0,
+                        physicsClientId=self.CLIENT
+                    )
+                    self._static_obstacle_ids.append(oid)
+                if self.DEBUG:
+                    print(f"[DEBUG] random: placed {self.num_static_obs} boxes")
+
+            case "circle":
+                # 在起点周围围成一个圆环
+                for i in range(self.num_static_obs):
+                    theta = 2*math.pi * i / self.num_static_obs
+                    r = self.SAMPLING_RANGE * 0.5
+                    pos = [
+                        self.P_s[0] + r*math.cos(theta),
+                        self.P_s[1] + r*math.sin(theta),
+                        0.5
+                    ]
+                    oid = p.loadURDF(
+                        DEFAULT_OBSTACLE_URDF,
+                        basePosition=pos,
+                        globalScaling=1.0,
+                        physicsClientId=self.CLIENT
+                    )
+                    self._static_obstacle_ids.append(oid)
+                if self.DEBUG:
+                    print(f"[DEBUG] circle: placed {self.num_static_obs} boxes in a ring")
+
+            case _:
+                # 未知场景：不放障碍
+                if self.DEBUG:
+                    print(f"[DEBUG] unknown scenario '{self.SCENARIO}': no obstacles added")
