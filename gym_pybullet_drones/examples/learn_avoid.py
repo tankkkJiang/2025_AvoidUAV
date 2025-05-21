@@ -32,6 +32,7 @@ DEFAULT_STOP_REWARD      = 1500.0           # PPO 停训练的回报阈值
 DEFAULT_LOG_INTERVAL     = 100              # 每隔 log_interval 个 timestep看到汇总
 DEFAULT_EVAL_EPISODES    = 5                # evaluate_policy 时每次评估的回合数
 DEFAULT_EVAL_FREQ        = 1000             # EvalCallback 的评估频率
+DEFAULT_N_ENVS           = 3                # 并行环境数量
 # ----------------------------------------------
 
 class RewardPartLogger(BaseCallback):
@@ -48,6 +49,20 @@ class RewardPartLogger(BaseCallback):
         metrics = {f"reward/{k}": info0.get(k, 0.0) for k in keys}
         wandb.log(metrics, step=self.num_timesteps)
         return True
+
+class EpisodeReturnLogger(BaseCallback):
+    """
+    每当 Monitor 提供 episode 信息时，将该 episode 的累计回报记录到 wandb：
+    info['episode']['r']
+    """
+    def _on_step(self) -> bool:
+        infos = self.locals.get("infos", [])
+        for info in infos:
+            ep = info.get("episode")
+            if ep is not None:
+                # ep["r"] 是该 episode 的总回报
+                wandb.log({"episode/return": ep["r"]}, step=self.num_timesteps)
+            return True
 
 def main(
     demo_gui: bool = DEFAULT_GUI,
@@ -81,7 +96,14 @@ def main(
 
     # 3. 创建训练与评估环境
     env_kwargs = dict(gui=False)  # 训练时关闭 GUI
-    train_env = make_vec_env(AvoidAviary, n_envs=1, env_kwargs=env_kwargs)
+    # 并行创建多个 Monitor 包装的 AvoidAviary
+    from stable_baselines3.common.vec_env import VecMonitor
+    train_env = make_vec_env(
+        lambda: Monitor(AvoidAviary(gui=False)),
+        n_envs=DEFAULT_N_ENVS,
+        env_kwargs={}
+    )
+    train_env = VecMonitor(train_env)  # 收集 episode 级别的回报信息
     eval_env = Monitor(AvoidAviary(gui=False))
 
     # 打印空间信息，便于调试
@@ -112,6 +134,7 @@ def main(
     )
 
     callbacks = [eval_cb, RewardPartLogger()]
+    callbacks.append(EpisodeReturnLogger())
     if wandb_cb:
         callbacks.append(wandb_cb)
 
