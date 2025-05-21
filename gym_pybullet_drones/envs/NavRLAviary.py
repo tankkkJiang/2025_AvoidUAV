@@ -96,11 +96,6 @@ class NavRLAviary(BaseRLAviary):
         self.enable_static_obs = enable_static_obs
         self.num_static_obs = num_static_obs
 
-        # Beta 分布形状参数 (α, β)，对每个动作维度均相同
-        self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
-        self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
-        self.action_space.sample = self.sample_beta_action
-
         # 用来存放当前 step 各子奖励
         self._reward_parts: dict = {
             "r_vel": 0.0,
@@ -128,6 +123,11 @@ class NavRLAviary(BaseRLAviary):
                          for _ in range(num_drones)]
         else:
             raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
+
+        # Beta 分布形状参数 (α, β)，对每个动作维度均相同
+        self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
+        self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
+        self.action_space.sample = self.sample_beta_action
 
         # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
         self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致，0.25m/s
