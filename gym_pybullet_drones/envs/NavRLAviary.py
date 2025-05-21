@@ -26,7 +26,7 @@ DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 7       # S_int 维度
 DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
-DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
+DEFAULT_DEBUG              = False   # 方便检查gui并打印episode结束原因
 
 # 动作缩放
 DEFAULT_ACTION_DIM         = 3                       # 动作维度 (VEL -> 4)
