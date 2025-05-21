@@ -124,7 +124,10 @@ def run(
 
         #### Compute control for the current way point #############
         for j in range(4):
-            action[j, :] = TARGET_VEL[j, wp_counters[j], :] 
+            action[j, :] = TARGET_VEL[j, wp_counters[j], :]
+            v = obs[j][10:13]
+            speed = np.linalg.norm(v)
+            print(f"[SPEED] Drone {j}, t = {t:.2f}s, |v| = {speed:.3f} m/s")
 
         #### Go to the next way point and loop #####################
         for j in range(4):
