@@ -18,10 +18,10 @@ DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
 DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
-DEFAULT_MAX_EPISODE_SEC    = 50     # 单集最长秒数
+DEFAULT_MAX_EPISODE_SEC    = 50      # 单集最长秒数
 DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
 # DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
-DEFAULT_ACTION_HZ          = 6       # RL 每秒给几次动作，最好小于CTRL
+DEFAULT_ACTION_HZ          = 24       # RL 每秒给几次动作，最好小于CTRL
 DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 7       # S_int 维度

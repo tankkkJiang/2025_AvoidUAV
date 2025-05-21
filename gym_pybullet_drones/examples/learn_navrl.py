@@ -26,8 +26,10 @@ DEFAULT_GUI              = False        # 默认评估/演示阶段是否开启 
 DEFAULT_STOP_REWARD      = 15000.0      # PPO 停训练的回报阈值
 DEFAULT_LOG_INTERVAL     = 100          # 每隔 log_interval 个 timestep看到汇总
 DEFAULT_EVAL_EPISODES    = 5            # evaluate_policy 时每次评估的回合数
-DEFAULT_EVAL_FREQ        = 1000         # EvalCallback 的评估频率
-DEFAULT_N_ENVS           = 10            # 并行环境数量
+DEFAULT_MAX_EPISODE_SEC  = 50      # 单集最长秒数
+DEFAULT_CTRL_FREQ        = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
+DEFAULT_EVAL_FREQ        = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
+DEFAULT_N_ENVS           = 100            # 并行环境数量
 
 # ----------------------------------------------
 
