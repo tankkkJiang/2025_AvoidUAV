@@ -27,7 +27,7 @@ DEFAULT_DEBUG              = False
 
 # -------- 动作相关 --------
 DEFAULT_ACTION_DIM         = 3                   # Δx, Δy, Δz
-DEFAULT_MAX_DELTA_M        = 0.02                # Δ 最大值 (m) ← 可调
+DEFAULT_MAX_DELTA_M        = 0.2                # Δ 最大值 (m) ← 可调
 DEFAULT_MAX_YAW_RATE       = math.pi / 3         # 保留偏航速率限制
 DEFAULT_SPEED_RATIO        = 1.0                 # PID 速度比例
 
