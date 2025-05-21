@@ -40,9 +40,8 @@ DEFAULT_EVAL_FREQ        = 1000             # EvalCallback 的评估频率
 DEFAULT_N_ENVS           = 3                # 并行环境数量
 # ----------------------------------------------
 
-def make_env():
-    # 让 make_vec_env 自带 Monitor，并只用 VecMonitor 统计
-    return Monitor(AvoidAviary(gui=False))
+def make_env(_=None):
+    return AvoidAviary(gui=False)
 
 class RewardPartLogger(BaseCallback):
     """
@@ -132,9 +131,9 @@ def main(
     # 并行环境：每个子环境都要被 Monitor 包裹，才能产出 info["episode"]
     train_env = make_vec_env(
         make_env,
-        n_envs=DEFAULT_N_ENVS,
-        vec_env_cls=VecMonitor,  # 直接让 make_vec_env 返回 VecMonitor
+        n_envs=DEFAULT_N_ENVS,          # 先得到 Dummy/SubprocVecEnv
     )
+    train_env = VecMonitor(train_env)   # 再包一层 VecMonitor
     eval_env = DummyVecEnv([lambda: AvoidAviary(gui=False)])
     eval_env = VecMonitor(eval_env)
 
