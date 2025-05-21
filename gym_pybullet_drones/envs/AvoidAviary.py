@@ -324,7 +324,7 @@ class AvoidAviary(BaseRLAviary):
         from gymnasium import spaces
         low = -np.ones((1, DEFAULT_ACTION_DIM), dtype=np.float32)
         high = np.ones((1, DEFAULT_ACTION_DIM), dtype=np.float32)
-        return spaces.Box(low=lo, high=hi, dtype=np.float32)
+        return spaces.Box(low=low, high=high, dtype=np.float32)
 
     #  动作 → 4 电机 RPM
     def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
