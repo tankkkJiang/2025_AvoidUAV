@@ -31,7 +31,7 @@ DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原�
 # 动作缩放
 DEFAULT_ACTION_DIM         = 4                       # 动作维度 (VEL -> 4)
 DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 4 个，共 8 维
-DEFAULT_deterministic      = True                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
+DEFAULT_DETERMINISTIC      = True                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
 DEFAULT_MAX_VEL_MPS        = 1.0                     # xy最大速度，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 1                       # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3               # 60 °/s
@@ -82,7 +82,7 @@ class NavRLAviary(BaseRLAviary):
         self.MAX_STEPS = self.EPISODE_SEC * self.CTRL_FREQ
         self.SCENARIO = scenario  # 场景类型
         self.ACTION_REPEAT = max(1, action_repeat)
-        self.deterministic = DEFAULT_deterministic
+        self.deterministic = DEFAULT_DETERMINISTIC
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -130,7 +130,6 @@ class NavRLAviary(BaseRLAviary):
         # Beta 分布形状参数 (α, β)，对每个动作维度均相同
         self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
         self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
-        self.action_space.sample = self.sample_beta_action
 
         # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
         self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致，0.25m/s
