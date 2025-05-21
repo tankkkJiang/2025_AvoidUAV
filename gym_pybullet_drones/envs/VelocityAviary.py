@@ -155,6 +155,8 @@ class VelocityAviary(BaseAviary):
                 v_unit_vector = target_v[0:3] / np.linalg.norm(target_v[0:3])
             else:
                 v_unit_vector = np.zeros(3)
+            v_target=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector
+            print(f"[DEBUG] Drone {k} v_unit_vector = {v_unit_vector.round(3)}, target_vel = {v_target.round(3)}")
             temp, _, _ = self.ctrl[k].computeControl(control_timestep=self.CTRL_TIMESTEP,
                                                     cur_pos=state[0:3],
                                                     cur_quat=state[3:7],
