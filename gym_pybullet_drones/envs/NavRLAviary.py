@@ -30,11 +30,10 @@ DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原�
 
 # 动作缩放
 DEFAULT_ACTION_DIM         = 3                       # 动作维度 (VEL -> 4)
-DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 4 个，共 8 维
+DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 DEFAULT_ACTION_DIM 个，共 2*DEFAULT_ACTION_DIM 维
 DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
 DEFAULT_MAX_VEL_MPS        = 1.0                     # xy最大速度，注意 max_speed_kmh 30.000000
-DEFAULT_MAX_VEL_Z          = 0.1                       # 垂直最大速度
-DEFAULT_MAX_YAW_RATE       = math.pi/3               # 60 °/s
+DEFAULT_MAX_VEL_Z          = 0.1                     # 垂直最大速度
 DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
 
 # 静态障碍参数
@@ -183,9 +182,9 @@ class NavRLAviary(BaseRLAviary):
                 obs_vec = obs.flatten()
                 # 切片索引
                 idx = 0
-                # S_int：前 5 维（指向目标的单位向量 x,y,z；距离；x 轴速度）
-                si = obs_vec[idx:idx+5]
-                print(f"[DEBUG] Step {self.step_counter:4d} S_int (前 5 维) = {si}  ← [目标方向单位向量(x,y,z), 目标距离, 当前 x 速度]")
+                # S_int：前 Sint 维（指向目标的单位向量 x,y,z；距离；x 轴速度）
+                si = obs_vec[idx:idx+DEFAULT_S_INT_DIM]
+                print(f"[DEBUG] Step {self.step_counter:4d} S_int (前 {DEFAULT_S_INT_DIM} 维) = {si}  ← [目标方向单位向量(x,y,z), 目标距离, 当前 x 速度]")
                 idx += 5
 
                 # S_dyn：接下来 N_D * 8 维（动态障碍，占位全 0）
@@ -572,7 +571,6 @@ class NavRLAviary(BaseRLAviary):
         原始 u ∈ [0,1]，再线性映射到 action ∈ [-1,1]。
         返回 shape = (num_drones, DEFAULT_ACTION_DIM)
         """
-        # u.shape = (num_drones, 4)
         u = np.random.beta(self._beta_alpha,
                            self._beta_beta,
                            size=(self.NUM_DRONES, DEFAULT_ACTION_DIM))
