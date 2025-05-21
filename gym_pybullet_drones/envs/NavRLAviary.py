@@ -132,7 +132,7 @@ class NavRLAviary(BaseRLAviary):
         self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
 
         # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
-        self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致，0.25m/s
+        self.SPEED_LIMIT = 0.05 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致
 
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
