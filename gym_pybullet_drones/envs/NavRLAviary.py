@@ -146,7 +146,6 @@ class NavRLAviary(BaseRLAviary):
             reason = "GOAL" if terminated else "TIMEOUT"
             print(f"[EPISODE END] reason={reason}  steps={self.step_counter}  dist={info['distance_to_goal']:.2f}")
             # 3)
-        if self.DEBUG:
             # 经过 _preprocessAction -> clipped_action 后的 RPM
             # BaseAviary 会把 last_clipped_action 设为本步最终 RPM
             print(f"[DEBUG] RPM(applied)    ── {self.last_clipped_action[0].round(1)}")
