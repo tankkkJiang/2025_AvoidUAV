@@ -21,6 +21,8 @@ DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
 DEFAULT_MAX_EPISODE_SEC    = 100     # 单集最长秒数
 DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
 # DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
+DEFAULT_ACTION_HZ          = 12      # RL 每秒给几次动作，最好小于CTRL
+DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
@@ -28,13 +30,13 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 10.0         # xy最大速度，注意 max_speed_kmh 30.000000，由于速度可以直接导入控制层无需反归一化。
+DEFAULT_MAX_VEL_MPS        = 1.0         # xy最大速度，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 0.5         # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 DEFAULT_SPEED_RATIO        = 1           # φ_speed，决定速度幅值的固定系数 (0~1)
 
 # 静态障碍参数
-DEFAULT_OBSTACLE_URDF = "./assets/box.urdf"
+DEFAULT_OBSTACLE_URDF = "cube.urdf"
 DEFAULT_SCENARIO              = "simple"   # 可选 "random" | "simple"
 DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
 DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
@@ -64,6 +66,7 @@ class NavRLAviary(BaseRLAviary):
                  num_static_obs: int = DEFAULT_NUM_STATIC_OBS,
                  debug: bool = DEFAULT_DEBUG,
                  scenario: str = DEFAULT_SCENARIO,
+                 action_repeat: int = DEFAULT_ACTION_REPEAT,
                  **base_kwargs):
         # 保存自定义参数
         self.N_H = n_h
@@ -76,6 +79,7 @@ class NavRLAviary(BaseRLAviary):
         self.DEBUG = debug
         self.MAX_STEPS = self.EPISODE_SEC * self.CTRL_FREQ
         self.SCENARIO = scenario  # 场景类型
+        self.ACTION_REPEAT = max(1, action_repeat)
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -140,6 +144,14 @@ class NavRLAviary(BaseRLAviary):
 
     # ------------------------ Episode 管理 ------------------------
     def step(self, action):
+        if self.step_counter % self.ACTION_REPEAT == 0:
+            # 真的用到新动作；存进 ring buffer（用于观测）
+            self.action_buffer.append(action.copy())
+            self.last_highlevel_action = action.copy()
+        else:
+            # 用上一次动作
+            action = self.last_highlevel_action
+
         if self.DEBUG:
             interval = max(1, self.MAX_STEPS // 10)
             if self.step_counter % interval == 0:
