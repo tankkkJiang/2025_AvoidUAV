@@ -92,6 +92,7 @@ class NavRLAviary(BaseRLAviary):
         # 起点占位；目标占位，避免零向量除以 0
         self.P_s = np.zeros(3)
         self.P_g = np.array([1., 0., 0.])
+        self.R_W2G = np.eye(3)
 
         # 静态障碍
         self._static_obstacle_ids: List[int] = []
