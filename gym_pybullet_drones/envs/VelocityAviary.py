@@ -126,58 +126,49 @@ class VelocityAviary(BaseAviary):
 
     ################################################################################
 
-    # def _preprocessAction(self,
-    #                       action
-    #                       ):
-    #     """Pre-processes the action passed to `.step()` into motors' RPMs.
-    #
-    #     Uses PID control to target a desired velocity vector.
-    #
-    #     Parameters
-    #     ----------
-    #     action : ndarray
-    #         The desired velocity input for each drone, to be translated into RPMs.
-    #
-    #     Returns
-    #     -------
-    #     ndarray
-    #         (NUM_DRONES, 4)-shaped array of ints containing to clipped RPMs
-    #         commanded to the 4 motors of each drone.
-    #
-    #     """
-    #     rpm = np.zeros((self.NUM_DRONES, 4))
-    #     for k in range(action.shape[0]):
-    #         #### Get the current state of the drone  ###################
-    #         state = self._getDroneStateVector(k)
-    #         target_v = action[k, :]
-    #         #### Normalize the first 3 components of the target velocity
-    #         if np.linalg.norm(target_v[0:3]) != 0:
-    #             v_unit_vector = target_v[0:3] / np.linalg.norm(target_v[0:3])
-    #         else:
-    #             v_unit_vector = np.zeros(3)
-    #         v_target=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector
-    #         print(f"[DEBUG] Drone {k} v_unit_vector = {v_unit_vector.round(3)}, target_vel = {v_target.round(3)}")
-    #         temp, _, _ = self.ctrl[k].computeControl(control_timestep=self.CTRL_TIMESTEP,
-    #                                                 cur_pos=state[0:3],
-    #                                                 cur_quat=state[3:7],
-    #                                                 cur_vel=state[10:13],
-    #                                                 cur_ang_vel=state[13:16],
-    #                                                 target_pos=state[0:3], # same as the current position
-    #                                                 target_rpy=np.array([0,0,state[9]]), # keep current yaw
-    #                                                 target_vel=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector # target the desired velocity vector
-    #                                                 )
-    #         rpm[k,:] = temp
-    #     return rpm
+    def _preprocessAction(self,
+                          action
+                          ):
+        """Pre-processes the action passed to `.step()` into motors' RPMs.
 
-    def _preprocessAction(self, action):
-        # action[:, :3] = 速度方向， action[:, 3] = 相对限速因子
-        # 直接把速度映射到 RPM：rpm = k * v
+        Uses PID control to target a desired velocity vector.
+
+        Parameters
+        ----------
+        action : ndarray
+            The desired velocity input for each drone, to be translated into RPMs.
+
+        Returns
+        -------
+        ndarray
+            (NUM_DRONES, 4)-shaped array of ints containing to clipped RPMs
+            commanded to the 4 motors of each drone.
+
+        """
         rpm = np.zeros((self.NUM_DRONES, 4))
-        K = 10000.0  # 任意放大系数
-        for k in range(self.NUM_DRONES):
-            v = action[k, 0:3] * self.SPEED_LIMIT * action[k, 3]
-            rpm[k, :] = np.linalg.norm(v) * K
+        for k in range(action.shape[0]):
+            #### Get the current state of the drone  ###################
+            state = self._getDroneStateVector(k)
+            target_v = action[k, :]
+            #### Normalize the first 3 components of the target velocity
+            if np.linalg.norm(target_v[0:3]) != 0:
+                v_unit_vector = target_v[0:3] / np.linalg.norm(target_v[0:3])
+            else:
+                v_unit_vector = np.zeros(3)
+            v_target=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector
+            print(f"[DEBUG] Drone {k} v_unit_vector = {v_unit_vector.round(3)}, target_vel = {v_target.round(3)}")
+            temp, _, _ = self.ctrl[k].computeControl(control_timestep=self.CTRL_TIMESTEP,
+                                                    cur_pos=state[0:3],
+                                                    cur_quat=state[3:7],
+                                                    cur_vel=state[10:13],
+                                                    cur_ang_vel=state[13:16],
+                                                    target_pos=state[0:3], # same as the current position
+                                                    target_rpy=np.array([0,0,state[9]]), # keep current yaw
+                                                    target_vel=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector # target the desired velocity vector
+                                                    )
+            rpm[k,:] = temp
         return rpm
+
 
     ################################################################################
 
