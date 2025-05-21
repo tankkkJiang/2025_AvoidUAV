@@ -55,7 +55,6 @@ if __name__ == "__main__":
         num_drones=1,
         gui=True,           # 打开 PyBullet GUI
         record=False,       # 如需录像可打开
-        max_episode_sec=10  # 每集最长 10s（可按需调节）
     )
 
     print("=== 无限随机测试，按 Ctrl+C 可退出 ===")
