@@ -30,7 +30,7 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 5.0         # xy最大速度，注意 max_speed_kmh 30.000000
+DEFAULT_MAX_VEL_MPS        = 2.0         # xy最大速度，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 0.5         # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 DEFAULT_SPEED_RATIO        = 1           # φ_speed，决定速度幅值的固定系数 (0~1)
