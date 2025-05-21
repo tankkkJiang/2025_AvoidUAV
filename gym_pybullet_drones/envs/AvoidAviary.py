@@ -322,8 +322,8 @@ class AvoidAviary(BaseRLAviary):
     # ------------------------ Action space -----------------------
     def _actionSpace(self):
         from gymnasium import spaces
-        lo = np.full((1, DEFAULT_ACTION_DIM), 1e-3, dtype=np.float32)
-        hi = np.full((1, DEFAULT_ACTION_DIM), 10.0, dtype=np.float32)
+        low = -np.ones((1, DEFAULT_ACTION_DIM), dtype=np.float32)
+        high = np.ones((1, DEFAULT_ACTION_DIM), dtype=np.float32)
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
     #  动作 → 4 电机 RPM
