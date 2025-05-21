@@ -44,7 +44,7 @@ DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
 DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
 
 # 奖励权重 λ_i
-LAMBDA_VEL     = 1.0
+LAMBDA_VEL     = 3.0
 LAMBDA_SS      = 1.0
 LAMBDA_DS      = 1.0
 LAMBDA_SMOOTH  = 0.1
