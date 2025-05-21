@@ -27,6 +27,7 @@ DEFAULT_STOP_REWARD      = 1500.0       # PPO 停训练的回报阈值
 DEFAULT_LOG_INTERVAL     = 100          # 每隔 log_interval 个 timestep看到汇总
 DEFAULT_EVAL_EPISODES    = 5            # evaluate_policy 时每次评估的回合数
 DEFAULT_EVAL_FREQ        = 1000         # EvalCallback 的评估频率
+DEFAULT_N_ENVS           = 3            # 并行环境数量
 
 # ----------------------------------------------
 
@@ -78,7 +79,7 @@ def main(demo_gui: bool = DEFAULT_GUI,
     # ============ 3. 创建环境 =====================
     env_kwargs = dict(gui=False)  # 训练禁用 GUI 提速
 
-    train_env = make_vec_env(NavRLAviary, n_envs=1, env_kwargs=env_kwargs)
+    train_env = make_vec_env(NavRLAviary, n_envs=DEFAULT_N_ENVS, env_kwargs=env_kwargs)
     eval_env = Monitor(NavRLAviary(gui=False))
 
 
