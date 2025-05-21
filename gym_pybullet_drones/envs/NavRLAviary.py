@@ -25,15 +25,17 @@ DEFAULT_ACTION_HZ          = 6       # RL 每秒给几次动作，最好小于CT
 DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
-DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
 DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 1.0         # xy最大速度，注意 max_speed_kmh 30.000000
-DEFAULT_MAX_VEL_Z          = 1         # 垂直最大速度
-DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
-DEFAULT_SPEED_RATIO        = 1           # φ_speed，决定速度幅值的固定系数 (0~1)
+DEFAULT_ACTION_DIM         = 4                       # 动作维度 (VEL -> 4)
+DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 4 个，共 8 维
+DEFAULT_deterministic      = True                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
+DEFAULT_MAX_VEL_MPS        = 1.0                     # xy最大速度，注意 max_speed_kmh 30.000000
+DEFAULT_MAX_VEL_Z          = 1                       # 垂直最大速度
+DEFAULT_MAX_YAW_RATE       = math.pi/3               # 60 °/s
+DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "cube.urdf"
@@ -80,6 +82,7 @@ class NavRLAviary(BaseRLAviary):
         self.MAX_STEPS = self.EPISODE_SEC * self.CTRL_FREQ
         self.SCENARIO = scenario  # 场景类型
         self.ACTION_REPEAT = max(1, action_repeat)
+        self.deterministic = DEFAULT_deterministic
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -149,11 +152,21 @@ class NavRLAviary(BaseRLAviary):
     def step(self, action):
         if self.step_counter % self.ACTION_REPEAT == 0:
             # 真的用到新动作；存进 ring buffer（用于观测）
-            self.action_buffer.append(action.copy())
-            self.last_highlevel_action = action.copy()
+            α = np.clip(action[:, :DEFAULT_ACTION_DIM], 1e-3, None)
+            β = np.clip(action[:, DEFAULT_ACTION_DIM:], 1e-3, None)
+            if self.deterministic:
+                u = α / (α + β)  # Beta 均值
+            else:
+                u = np.random.beta(α, β)  # 训练时随机采样
+            # 映射到 [-1,1]
+            hat_V = (2.0 * u - 1.0).astype(np.float32)
+            self.action_buffer.append(hat_V.copy())
+            self.last_highlevel_action = hat_V.copy()
         else:
             # 用上一次动作
-            action = self.last_highlevel_action
+            hat_V = self.last_highlevel_action
+        # 将映射后速度当成“raw”动作，传给父类去算 RPM
+        action = hat_V
 
         if self.DEBUG:
             interval = max(1, self.MAX_STEPS // 10)
@@ -162,8 +175,6 @@ class NavRLAviary(BaseRLAviary):
                 print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(raw) ── {np.array(action).reshape(-1)}")
 
 
-        if action is None:
-            action = self.sample_beta_action()
         obs, reward, terminated, truncated, info = super().step(action)
 
 
@@ -338,10 +349,9 @@ class NavRLAviary(BaseRLAviary):
 
     # ------------------------ Action space -----------------------
     def _actionSpace(self):
-        """动作 = [vx̂, vŷ, vẑ, ω̂yaw]，全维 ∈ [-1,1]."""
         from gymnasium import spaces
-        lo = np.array([[-1., -1., -1., -1.]])
-        hi = np.array([[1., 1., 1., 1.]])
+        lo = np.zeros((1, DEFAULT_ACTION_PARAM_DIM), dtype=np.float32)
+        hi = np.full((1, DEFAULT_ACTION_PARAM_DIM), np.inf, dtype=np.float32)
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
     # ------------------------ Action → RPM ------------------------
