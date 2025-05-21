@@ -33,7 +33,7 @@ DEFAULT_ACTION_DIM         = 4                       # 动作维度 (VEL -> 4)
 DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 4 个，共 8 维
 DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
 DEFAULT_MAX_VEL_MPS        = 1.0                     # xy最大速度，注意 max_speed_kmh 30.000000
-DEFAULT_MAX_VEL_Z          = 1                       # 垂直最大速度
+DEFAULT_MAX_VEL_Z          = 0.1                       # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3               # 60 °/s
 DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
 
@@ -108,8 +108,8 @@ class NavRLAviary(BaseRLAviary):
             "r_height": 0.0,
         }
 
-        # 把初始高度抬到 1 m 左右
-        init_xyzs = np.array([[0.0, 0.0, 1.0]])  # (num_drones,3)
+        # 把初始高度抬高，第三维。
+        init_xyzs = np.array([[0.0, 0.0, 0.5]])  # (num_drones,3)
         base_kwargs.setdefault("initial_xyzs", init_xyzs)
 
         # 调用父类构造函数 (obs=KIN, act=VEL)
@@ -151,12 +151,12 @@ class NavRLAviary(BaseRLAviary):
     def step(self, action):
         if self.step_counter % self.ACTION_REPEAT == 0:
             # 真的用到新动作；存进 ring buffer（用于观测）
-            α = np.clip(action[:, :DEFAULT_ACTION_DIM], 1e-3, None)
-            β = np.clip(action[:, DEFAULT_ACTION_DIM:], 1e-3, None)
+            alpha = np.clip(action[:, :DEFAULT_ACTION_DIM], 1e-3, None)
+            beta = np.clip(action[:, DEFAULT_ACTION_DIM:], 1e-3, None)
             if self.deterministic:
-                u = α / (α + β)  # Beta 均值
+                u = alpha / (alpha + beta)  # Beta 均值
             else:
-                u = np.random.beta(α, β)  # 训练时随机采样
+                u = np.random.beta(alpha, beta)  # 训练时随机采样
             # 映射到 [-1,1]
             hat_V = (2.0 * u - 1.0).astype(np.float32)
             self.action_buffer.append(hat_V.copy())
@@ -175,6 +175,30 @@ class NavRLAviary(BaseRLAviary):
 
 
         obs, reward, terminated, truncated, info = super().step(action)
+
+        if self.DEBUG:
+            interval = max(1, self.MAX_STEPS // 10)
+            if self.step_counter % interval == 0:
+                # obs 形状： (1, obs_dim)
+                obs_vec = obs.flatten()
+                # 切片索引
+                idx = 0
+                # S_int：前 5 维（指向目标的单位向量 x,y,z；距离；x 轴速度）
+                si = obs_vec[idx:idx+5]
+                print(f"[DEBUG] Step {self.step_counter:4d} S_int (前 5 维) = {si}  ← [目标方向单位向量(x,y,z), 目标距离, 当前 x 速度]")
+                idx += 5
+
+                # S_dyn：接下来 N_D * 8 维（动态障碍，占位全 0）
+                dyn_dim = self.N_D * DEFAULT_DYN_FEATURE_DIM
+                sd = obs_vec[idx:idx+dyn_dim]
+                print(f"[DEBUG] Step {self.step_counter:4d} S_dyn ({dyn_dim} 维) = {sd}  ← [最近动态障碍的特征向量]")
+                idx += dyn_dim
+
+                # S_stat：接下来 N_H * N_V 维（静态障碍射线距离）
+                stat_dim = self.N_H * self.N_V
+                ss = obs_vec[idx:idx+stat_dim]
+                print(f"[DEBUG] Step {self.step_counter:4d} S_stat ({stat_dim} 维) = {ss}  ← [每条射线到最近静态障碍的距离]")
+                idx += stat_dim
 
 
         if self.DEBUG and (terminated or truncated):
