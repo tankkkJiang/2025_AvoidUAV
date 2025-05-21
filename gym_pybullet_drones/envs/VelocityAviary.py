@@ -19,7 +19,7 @@ class VelocityAviary(BaseAviary):
                  initial_rpys=None,
                  physics: Physics=Physics.PYB,
                  pyb_freq: int = 240,
-                 ctrl_freq: int = 240,
+                 ctrl_freq: int = 48,
                  gui=False,
                  record=False,
                  obstacles=False,

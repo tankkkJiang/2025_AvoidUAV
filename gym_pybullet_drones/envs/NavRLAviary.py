@@ -119,7 +119,7 @@ class NavRLAviary(BaseRLAviary):
             raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
 
         # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
-        self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # ≈0.03*V_max(m/s)，与VelocityAviary.py保持一致
+        self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致，0.25m/s
 
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
@@ -329,10 +329,12 @@ class NavRLAviary(BaseRLAviary):
 
             # -------- 线速度方向 --------
             v_hat = action[k, 0:3]  # [-1,1]^3
-            # if np.linalg.norm(v_hat) > 1e-3:
-            #     v_dir = v_hat / np.linalg.norm(v_hat)
-            # else:  # 零向量容错
-            #     v_dir = np.zeros(3)
+            # x,y 用 DEFAULT_MAX_VEL_MPS，z 用 DEFAULT_MAX_VEL_Z
+            v_des = np.array([
+                v_hat[0] * DEFAULT_MAX_VEL_MPS,
+                v_hat[1] * DEFAULT_MAX_VEL_MPS,
+                v_hat[2] * DEFAULT_MAX_VEL_Z
+            ], dtype=np.float32)
             v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_hat
 
             # -------- 反归一化偏航角速度 --------
