@@ -127,6 +127,7 @@ def run(
             action[j, :] = TARGET_VEL[j, wp_counters[j], :]
             v = obs[j][10:13]
             speed = np.linalg.norm(v)
+            t = i / env.CTRL_FREQ
             print(f"[SPEED] Drone {j}, t = {t:.2f}s, |v| = {speed:.3f} m/s")
 
         #### Go to the next way point and loop #####################
