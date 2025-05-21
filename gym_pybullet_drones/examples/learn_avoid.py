@@ -15,6 +15,7 @@ from stable_baselines3.common.callbacks import (
 )
 from stable_baselines3.common.evaluation import evaluate_policy
 from stable_baselines3.common.monitor import Monitor
+from stable_baselines3.common.vec_env import VecMonitor
 
 import wandb
 from gym_pybullet_drones.utils.wandb_callback import WandbCallback
@@ -48,6 +49,45 @@ class RewardPartLogger(BaseCallback):
         keys = ("r_vel","r_ss","r_ds","r_smooth","r_height")
         metrics = {f"reward/{k}": info0.get(k, 0.0) for k in keys}
         wandb.log(metrics, step=self.num_timesteps)
+        return True
+
+class EpisodeSubrewardLogger(BaseCallback):
+    """
+    在每个 episode 结束时，把五项子奖励的累计值和总回报一起
+    按 episode 序号上传到 wandb。
+    """
+    def __init__(self, keys=("r_vel","r_ss","r_ds","r_smooth","r_height")):
+        super().__init__()
+        self.keys = keys
+    def _on_training_start(self) -> None:
+        # 并行环境数量
+        self.num_envs = self.training_env.num_envs
+        # 每个 env 的子奖赏累加器
+        self.accum = {k: np.zeros(self.num_envs, dtype=np.float32)
+                      for k in self.keys}
+        # 全局 episode 计数
+        self.ep_count = 0
+    def _on_step(self) -> bool:
+        infos = self.locals.get("infos", [])
+        # 逐 env 处理
+        for i, info in enumerate(infos):
+            # 累加子奖励
+            for k in self.keys:
+                self.accum[k][i] += info.get(k, 0.0)
+            # 如果这个 env 刚结束一个 episode
+            ep = info.get("episode")
+            if ep is not None:
+                self.ep_count += 1
+                # 构造 metrics
+                metrics = {f"episode/{k}_sum": float(self.accum[k][i])
+                           for k in self.keys}
+                # 加入总回报
+                metrics["episode/return"] = float(ep["r"])
+                # 用 episode 序号作为 wandb 的 x 轴 step
+                wandb.log(metrics, step=self.ep_count)
+                # 重置该 env 的累加器
+                for k in self.keys:
+                    self.accum[k][i] = 0.0
         return True
 
 class EpisodeReturnLogger(BaseCallback):
@@ -96,14 +136,14 @@ def main(
 
     # 3. 创建训练与评估环境
     env_kwargs = dict(gui=False)  # 训练时关闭 GUI
-    # 并行创建多个 Monitor 包装的 AvoidAviary
-    from stable_baselines3.common.vec_env import VecMonitor
+    # 并行环境：每个子环境都要被 Monitor 包裹，才能产出 info["episode"]
     train_env = make_vec_env(
         lambda: Monitor(AvoidAviary(gui=False)),
-        n_envs=DEFAULT_N_ENVS,
-        env_kwargs={}
+        n_envs = DEFAULT_N_ENVS,
+        env_kwargs = {}
     )
-    train_env = VecMonitor(train_env)  # 收集 episode 级别的回报信息
+    # VecMonitor 用来让 Monitor 信息在向量化环境里汇总
+    train_env = VecMonitor(train_env)
     eval_env = Monitor(AvoidAviary(gui=False))
 
     # 打印空间信息，便于调试
@@ -133,8 +173,9 @@ def main(
         if wandb_flag else None
     )
 
-    callbacks = [eval_cb, RewardPartLogger()]
-    callbacks.append(EpisodeReturnLogger())
+    callbacks = [eval_cb,
+                 RewardPartLogger(),
+                 EpisodeSubrewardLogger()]
     if wandb_cb:
         callbacks.append(wandb_cb)
 
