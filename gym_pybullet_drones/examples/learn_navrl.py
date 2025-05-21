@@ -27,7 +27,7 @@ DEFAULT_STOP_REWARD      = 1500.0       # PPO 停训练的回报阈值
 DEFAULT_LOG_INTERVAL     = 100          # 每隔 log_interval 个 timestep看到汇总
 DEFAULT_EVAL_EPISODES    = 5            # evaluate_policy 时每次评估的回合数
 DEFAULT_EVAL_FREQ        = 1000         # EvalCallback 的评估频率
-DEFAULT_N_ENVS           = 3            # 并行环境数量
+DEFAULT_N_ENVS           = 10            # 并行环境数量
 
 # ----------------------------------------------
 
