@@ -24,12 +24,12 @@ DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_fr
 DEFAULT_ACTION_HZ          = 6       # RL 每秒给几次动作，最好小于CTRL
 DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
-DEFAULT_S_INT_DIM          = 5       # S_int 维度
+DEFAULT_S_INT_DIM          = 7       # S_int 维度
 DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_ACTION_DIM         = 4                       # 动作维度 (VEL -> 4)
+DEFAULT_ACTION_DIM         = 3                       # 动作维度 (VEL -> 4)
 DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 4 个，共 8 维
 DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
 DEFAULT_MAX_VEL_MPS        = 1.0                     # xy最大速度，注意 max_speed_kmh 30.000000
@@ -44,7 +44,7 @@ DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
 DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
 
 # 奖励权重 λ_i
-LAMBDA_VEL     = 3.0
+LAMBDA_VEL     = 1.0
 LAMBDA_SS      = 1.0
 LAMBDA_DS      = 1.0
 LAMBDA_SMOOTH  = 0.1
@@ -88,7 +88,7 @@ class NavRLAviary(BaseRLAviary):
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
 
         # 用于奖励计算的上一步速度缓存
-        self.prev_vel_world = np.zeros(3)
+        self.prev_vel_goal = np.zeros(3)
 
         # 起点占位；目标占位，避免零向量除以 0
         self.P_s = np.zeros(3)
@@ -265,7 +265,7 @@ class NavRLAviary(BaseRLAviary):
                                [      0 ,      0 , 1]])
 
         # 重置速度缓存
-        self.prev_vel_world = np.zeros(3)
+        self.prev_vel_goal = np.zeros(3)
         self.step_counter = 0
 
         p.addUserDebugText(
@@ -334,11 +334,17 @@ class NavRLAviary(BaseRLAviary):
         P_r_W = state[0:3]
         V_r_W = state[10:13]
 
-        # === S_int ===
-        dir_to_goal = self.P_g - P_r_W
-        dist_to_goal = np.linalg.norm(dir_to_goal) + 1e-6
-        dir_unit = dir_to_goal / dist_to_goal
-        S_int = np.hstack([dir_unit, dist_to_goal, V_r_W[0:1]])  # 5 维，速度简化为 v_x
+        # 世界→目标坐标系下的位置差与速度
+        delta_W = self.P_g - P_r_W  # world 下的到目标向量
+        dist_to_goal = np.linalg.norm(delta_W) + 1e-6
+        delta_G = self.R_W2G @ delta_W  # Goal Frame 下
+        dir_unit_G = delta_G / dist_to_goal  # 方向单位向量
+        V_r_G = self.R_W2G @ V_r_W  # 速度也转换到 Goal Frame
+
+        # === S_int (Goal Frame) ===
+        # [dir_x, dir_y, dir_z, distance, speed_along_goal]
+        S_int = np.hstack([dir_unit_G, dist_to_goal, V_r_G])
+
 
         # === S_dyn (未实现) ===
         S_dyn, _ = self._get_dynamic_obstacles(P_r_W)          # (N_D, 8)
@@ -352,6 +358,8 @@ class NavRLAviary(BaseRLAviary):
 
         obs_vec = np.hstack([S_int, S_dyn_flat, ray_dist, act_buf]).astype(np.float32)
         return obs_vec.reshape(1, -1)  # Gymnasium 多智能体接口期望 (num_drones, obs_dim)
+
+
 
 
     def _observationSpace(self):
@@ -388,7 +396,7 @@ class NavRLAviary(BaseRLAviary):
             cur_yaw = state[9]
 
             # -------- 线速度方向 --------
-            v_hat = action[k, 0:3]  # [-1,1]^3
+            v_hat = action[k, 0:DEFAULT_ACTION_DIM]  # [-1,1]^3
             # x,y 用 DEFAULT_MAX_VEL_MPS，z 用 DEFAULT_MAX_VEL_Z
             v_des = np.array([
                 v_hat[0] * DEFAULT_MAX_VEL_MPS,
@@ -397,11 +405,11 @@ class NavRLAviary(BaseRLAviary):
             ], dtype=np.float32)
             v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
 
-            # -------- 反归一化偏航角速度 --------
-            omega_hat = float(np.clip(action[k, 3], -1., 1.))  # [-1,1]
-            omega_des = omega_hat * DEFAULT_MAX_YAW_RATE  # rad/s
-            # 把期望角速度积分成“下一时刻目标偏航角”
-            target_yaw = cur_yaw + omega_des * self.CTRL_TIMESTEP
+            # -------- 航向闭环：始终朝向速度方向 --------
+            if np.linalg.norm(v_des[:2]) > 1e-6:
+                target_yaw = math.atan2(v_des[1], v_des[0])
+            else:
+                target_yaw = cur_yaw
 
             if self.DEBUG:
                 interval = max(1, self.MAX_STEPS // 10)
@@ -428,11 +436,14 @@ class NavRLAviary(BaseRLAviary):
         P_r_W = state[0:3]
         V_r_W = state[10:13]
 
-        # r_vel
-        dir_to_goal = self.P_g - P_r_W
-        dist_to_goal = np.linalg.norm(dir_to_goal) + 1e-6
-        dir_unit = dir_to_goal / dist_to_goal
-        r_vel = float(np.dot(dir_unit, V_r_W))
+        # 世界→目标坐标系
+        delta_W = self.P_g - P_r_W
+        dist_to_goal = np.linalg.norm(delta_W) + 1e-6
+        delta_G = self.R_W2G @ delta_W
+        V_r_G = self.R_W2G @ V_r_W
+
+        # r_vel：Goal Frame 下 x 方向的速度
+        r_vel = float(V_r_G[0])
 
         # r_ss
         ray_dist = self._cast_static_rays(P_r_W)
@@ -443,8 +454,8 @@ class NavRLAviary(BaseRLAviary):
         r_ds = 0.0
 
         # r_smooth
-        r_smooth = -float(np.linalg.norm(V_r_W - self.prev_vel_world))
-        self.prev_vel_world = V_r_W.copy()
+        r_smooth = -float(np.linalg.norm(V_r_G - self.prev_vel_goal))
+        self.prev_vel_goal = V_r_G.copy()
 
         # r_height
         r_height = -float(min(abs(P_r_W[2] - self.P_s[2]), abs(P_r_W[2] - self.P_g[2])) ** 2)
