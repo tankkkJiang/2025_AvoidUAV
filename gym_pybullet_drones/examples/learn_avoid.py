@@ -201,17 +201,22 @@ def main(
     # 7. GUI 演示
     if demo_gui:
         demo_env = AvoidAviary(gui=True)
-        obs, _ = demo_env.reset()
-        done = False
-        ep_r = 0.0
-        while not done:
-            action, _ = model.predict(obs, deterministic=True)
-            obs, reward, terminated, truncated, _ = demo_env.step(action)
-            ep_r += reward
-            demo_env.render()
-            done = terminated or truncated
-        print(f"[INFO] 演示回合奖励: {ep_r:.2f}")
-        demo_env.close()
+        try:
+            while True:
+                obs, _ = demo_env.reset()
+                done = False
+                ep_r = 0.0
+                while not done:
+                    action, _ = model.predict(obs, deterministic=True)
+                    obs, reward, terminated, truncated, _ = demo_env.step(action)
+                    ep_r += reward
+                    demo_env.render()
+                    done = terminated or truncated
+                print(f"[INFO] 演示回合奖励: {ep_r:.2f}")
+        except KeyboardInterrupt:
+            print("\n[INFO] 手动退出演示")
+        finally:
+            demo_env.close()
 
     if wandb_flag:
         wandb.finish()
