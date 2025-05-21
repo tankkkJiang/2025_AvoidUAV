@@ -1,4 +1,4 @@
-# ./envs/NavRLAviary.py
+# ./envs/AvoidAviary.py
 
 from __future__ import annotations
 
@@ -14,47 +14,40 @@ from gym_pybullet_drones.utils.enums import ActionType, ObservationType, DroneMo
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 
 # ======================== 全局 / 默认参数 ========================
-DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
-DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
-DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
-DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
-DEFAULT_MAX_EPISODE_SEC    = 100     # 单集最长秒数
-DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
-# DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
-DEFAULT_ACTION_HZ          = 6       # RL 每秒给几次动作，最好小于CTRL
-DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
-DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
-DEFAULT_S_INT_DIM          = 5       # S_int 维度
-DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
-DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
+DEFAULT_N_H                = 36      # 水平射线数量
+DEFAULT_N_V                = 2       # 垂直平面数量
+DEFAULT_N_DYN_OBS          = 5       # 动态障碍上限
+DEFAULT_DYN_FEATURE_DIM    = 8       # 动态障碍特征维
+DEFAULT_MAX_EPISODE_SEC    = 100     # 最长秒数
+DEFAULT_CTRL_FREQ          = 48      # 控制频率 (Hz) = step 频率
+DEFAULT_GOAL_TOL_DIST      = 0.3     # 成功阈值 (m)
+DEFAULT_S_INT_DIM          = 5
+DEFAULT_SAMPLING_RANGE     = 5.0     # 起点采样半边长 (m)
+DEFAULT_DEBUG              = False
 
-# 动作缩放
-DEFAULT_ACTION_DIM         = 4                       # 动作维度 (VEL -> 4)
-DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 4 个，共 8 维
-DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
-DEFAULT_MAX_VEL_MPS        = 1.0                     # xy最大速度，注意 max_speed_kmh 30.000000
-DEFAULT_MAX_VEL_Z          = 1                       # 垂直最大速度
-DEFAULT_MAX_YAW_RATE       = math.pi/3               # 60 °/s
-DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
+# -------- 动作相关 --------
+DEFAULT_ACTION_DIM         = 3                   # Δx, Δy, Δz
+DEFAULT_MAX_DELTA_M        = 0.02                # Δ 最大值 (m) ← 可调
+DEFAULT_MAX_YAW_RATE       = math.pi / 3         # 保留偏航速率限制
+DEFAULT_SPEED_RATIO        = 1.0                 # PID 速度比例
 
-# 静态障碍参数
-DEFAULT_OBSTACLE_URDF = "cube.urdf"
-DEFAULT_SCENARIO              = "simple"   # 可选 "random" | "simple"
-DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
-DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
+# 观测用静态障碍
+DEFAULT_OBSTACLE_URDF      = "cube.urdf"
+DEFAULT_SCENARIO           = "simple"
+DEFAULT_ENABLE_STATIC_OBS  = True
+DEFAULT_NUM_STATIC_OBS     = 10
 
-# 奖励权重 λ_i
+# 奖励权重
 LAMBDA_VEL     = 1.0
 LAMBDA_SS      = 1.0
 LAMBDA_DS      = 1.0
 LAMBDA_SMOOTH  = 0.1
 LAMBDA_HEIGHT  = 0.1
-
 # ===============================================================
 
-class NavRLAviary(BaseRLAviary):
-    """简化 NavRL 无人机导航环境。"""
 
+class AvoidAviary(BaseRLAviary):
+    """基于 Δx,Δy,Δz 动作的单机导航‑避障环境。"""
     def __init__(self,
                  drone_model: DroneModel = DroneModel.CF2X,
                  num_drones: int = 1,
@@ -68,24 +61,18 @@ class NavRLAviary(BaseRLAviary):
                  num_static_obs: int = DEFAULT_NUM_STATIC_OBS,
                  debug: bool = DEFAULT_DEBUG,
                  scenario: str = DEFAULT_SCENARIO,
-                 action_repeat: int = DEFAULT_ACTION_REPEAT,
                  **base_kwargs):
-        # 保存自定义参数
-        self.N_H = n_h
-        self.N_V = n_v
-        self.N_D = n_dyn_obs
-        self.goal_tol = goal_tol
-        self.EPISODE_SEC = max_episode_sec
-        self.CTRL_FREQ = ctrl_freq
+        # ------------ 保存自定义参数 ------------
+        self.N_H           = n_h
+        self.N_V           = n_v
+        self.N_D           = n_dyn_obs
+        self.goal_tol      = goal_tol
+        self.EPISODE_SEC   = max_episode_sec
+        self.CTRL_FREQ     = ctrl_freq
         self.CTRL_TIMESTEP = 1 / self.CTRL_FREQ
-        self.DEBUG = debug
-        self.MAX_STEPS = self.EPISODE_SEC * self.CTRL_FREQ
-        self.SCENARIO = scenario  # 场景类型
-        self.ACTION_REPEAT = max(1, action_repeat)
-        self.deterministic = DEFAULT_DETERMINISTIC
-
-        # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
-        self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
+        self.DEBUG         = debug
+        self.MAX_STEPS     = self.EPISODE_SEC * self.CTRL_FREQ
+        self.SCENARIO      = scenario
 
         # 用于奖励计算的上一步速度缓存
         self.prev_vel_world = np.zeros(3)
@@ -99,7 +86,7 @@ class NavRLAviary(BaseRLAviary):
         self.enable_static_obs = enable_static_obs
         self.num_static_obs = num_static_obs
 
-        # 用来存放当前 step 各子奖励
+        # 用来存放当前 step 各子奖励，用于分解奖励。
         self._reward_parts: dict = {
             "r_vel": 0.0,
             "r_ss": 0.0,
@@ -127,19 +114,19 @@ class NavRLAviary(BaseRLAviary):
         else:
             raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
 
-        # Beta 分布形状参数 (α, β)，对每个动作维度均相同
-        self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
-        self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
-
-        # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
-        self.SPEED_LIMIT = 0.03 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致，0.25m/s
-
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
 
         # 用来存上一次 debug 文本的 id
         self._start_text_id = None
         self._goal_text_id  = None
+
+        # 观测需要的动作缓存
+        self.action_buffer.clear()
+        zero_act = np.zeros((self.NUM_DRONES, DEFAULT_ACTION_DIM),
+                            dtype=np.float32)
+        for _ in range(self.ACTION_BUFFER_SIZE):
+            self.action_buffer.append(zero_act)
 
 
         if self.DEBUG:
@@ -149,29 +136,21 @@ class NavRLAviary(BaseRLAviary):
 
     # ------------------------ Episode 管理 ------------------------
     def step(self, action):
-        if self.step_counter % self.ACTION_REPEAT == 0:
-            # 真的用到新动作；存进 ring buffer（用于观测）
-            α = np.clip(action[:, :DEFAULT_ACTION_DIM], 1e-3, None)
-            β = np.clip(action[:, DEFAULT_ACTION_DIM:], 1e-3, None)
-            if self.deterministic:
-                u = α / (α + β)  # Beta 均值
-            else:
-                u = np.random.beta(α, β)  # 训练时随机采样
-            # 映射到 [-1,1]
-            hat_V = (2.0 * u - 1.0).astype(np.float32)
-            self.action_buffer.append(hat_V.copy())
-            self.last_highlevel_action = hat_V.copy()
-        else:
-            # 用上一次动作
-            hat_V = self.last_highlevel_action
-        # 将映射后速度当成“raw”动作，传给父类去算 RPM
-        action = hat_V
+        # 剪切到 [-1,1] 并写入 ring‑buffer（供观测使用）
+        hat_delta = np.clip(action, -1., 1.).astype(np.float32)
+        self.action_buffer.append(hat_delta.copy())
+        self.last_highlevel_action = hat_delta.copy()
 
         if self.DEBUG:
             interval = max(1, self.MAX_STEPS // 10)
             if self.step_counter % interval == 0:
-                # 原始动作（High-level RL 输出）
-                print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(raw) ── {np.array(action).reshape(-1)}")
+                # 原始动作 a ∈ [-1,1]
+                print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(-1,1) ── "
+                      f"{action.reshape(-1)}")
+                # 映射到 Δpos ∈ [-DEFAULT_MAX_DELTA_M,DEFAULT_MAX_DELTA_M]
+                delta_pos = hat_delta * DEFAULT_MAX_DELTA_M
+                print(f"[DEBUG] Step {self.step_counter:4d} ── ΔPOS(m)    ── "
+                      f"{delta_pos.reshape(-1)}")
 
 
         obs, reward, terminated, truncated, info = super().step(action)
@@ -181,13 +160,6 @@ class NavRLAviary(BaseRLAviary):
             reason = "GOAL" if terminated else "TIMEOUT"
             print(f"[EPISODE END] reason={reason}  steps={self.step_counter}  dist={info['distance_to_goal']:.2f}")
             print(f"[DEBUG] EPISODE_SEC={self.EPISODE_SEC}, CTRL_FREQ={self.CTRL_FREQ}, MAX_STEPS={self.MAX_STEPS}")
-            # 经过 _preprocessAction -> clipped_action 后的 RPM
-            # BaseAviary 会把 last_clipped_action 设为本步最终 RPM
-            print(f"[DEBUG] RPM(applied)    ── {self.last_clipped_action[0].round(1)}")
-            # 当前机体速度
-            st = self._getDroneStateVector(0)
-            vel = st[10:13]
-            print(f"[DEBUG] VEL(current)    ── {vel.round(3)}")
 
         return obs, reward, terminated, truncated, info
 
@@ -353,47 +325,34 @@ class NavRLAviary(BaseRLAviary):
         hi = np.full((1, DEFAULT_ACTION_PARAM_DIM), 10.0, dtype=np.float32)
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
-    # ------------------------ Action → RPM ------------------------
+    #  动作 → 4 电机 RPM
     def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
-        """
-        将 [vx̂, vŷ, vẑ, ω̂yaw] → 4 电机 RPM.
-        """
+        """把 Δx,Δy,Δz 映射为局部目标点，再用 PID 求 RPM。"""
         rpm = np.zeros((self.NUM_DRONES, 4))
+        # 把 [-1,1] 映射到 [-ΔMAX, ΔMAX]
+        delta_pos = action * DEFAULT_MAX_DELTA_M  # (N,3)
         for k in range(self.NUM_DRONES):
             state = self._getDroneStateVector(k)
-            cur_yaw = state[9]
+            cur_pos   = state[0:3]
+            cur_quat  = state[3:7]
+            cur_vel   = state[10:13]
+            cur_omega = state[13:16]
 
-            # -------- 线速度方向 --------
-            v_hat = action[k, 0:3]  # [-1,1]^3
-            # x,y 用 DEFAULT_MAX_VEL_MPS，z 用 DEFAULT_MAX_VEL_Z
-            v_des = np.array([
-                v_hat[0] * DEFAULT_MAX_VEL_MPS,
-                v_hat[1] * DEFAULT_MAX_VEL_MPS,
-                v_hat[2] * DEFAULT_MAX_VEL_Z
-            ], dtype=np.float32)
-            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
+            # 目标点 = 当前 + Δ
+            target_pos = cur_pos + delta_pos[k]
+            target_yaw = state[9]  # 不改变偏航
+            target_vel = np.zeros(3, dtype=np.float32)
 
-            # -------- 反归一化偏航角速度 --------
-            omega_hat = float(np.clip(action[k, 3], -1., 1.))  # [-1,1]
-            omega_des = omega_hat * DEFAULT_MAX_YAW_RATE  # rad/s
-            # 把期望角速度积分成“下一时刻目标偏航角”
-            target_yaw = cur_yaw + omega_des * self.CTRL_TIMESTEP
-
-            if self.DEBUG:
-                interval = max(1, self.MAX_STEPS // 10)
-                if self.step_counter % interval == 0:
-                    print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} v_target = {v_des.round(3)}")
-
-            # -------- PID 控制求电机 RPM --------
+            # DSLPIDControl → RPM
             rpm[k, :], _, _ = self.ctrl[k].computeControl(
                 control_timestep=self.CTRL_TIMESTEP,
-                cur_pos=state[0:3],
-                cur_quat=state[3:7],
-                cur_vel=state[10:13],
-                cur_ang_vel=state[13:16],
-                target_pos=state[0:3],                      # 不跟踪位置
-                target_rpy=np.array([0., 0., target_yaw]),  # 只改偏航
-                target_vel=v_des  # 线速度追踪
+                cur_pos=cur_pos,
+                cur_quat=cur_quat,
+                cur_vel=cur_vel,
+                cur_ang_vel=cur_omega,
+                target_pos=target_pos,
+                target_rpy=np.array([0., 0., target_yaw]),
+                target_vel=target_vel
             )
         return rpm
 
@@ -530,16 +489,3 @@ class NavRLAviary(BaseRLAviary):
                 # 未知场景：不放障碍
                 if self.DEBUG:
                     print(f"[DEBUG] unknown scenario '{self.SCENARIO}': no obstacles added")
-
-    def sample_beta_action(self) -> np.ndarray:
-        """
-        从 Beta(α,β) 中按形状参数采样，
-        原始 u ∈ [0,1]，再线性映射到 action ∈ [-1,1]。
-        返回 shape = (num_drones, DEFAULT_ACTION_DIM)
-        """
-        # u.shape = (num_drones, 4)
-        u = np.random.beta(self._beta_alpha,
-                           self._beta_beta,
-                           size=(self.NUM_DRONES, DEFAULT_ACTION_DIM))
-        # 映射到 [-1,1]
-        return (2.0 * u - 1.0).astype(np.float32)
