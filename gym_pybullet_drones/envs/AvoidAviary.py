@@ -73,6 +73,7 @@ class AvoidAviary(BaseRLAviary):
         self.DEBUG         = debug
         self.MAX_STEPS     = self.EPISODE_SEC * self.CTRL_FREQ
         self.SCENARIO      = scenario
+        self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
 
         # 用于奖励计算的上一步速度缓存
         self.prev_vel_world = np.zeros(3)
