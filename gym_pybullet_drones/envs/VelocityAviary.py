@@ -75,7 +75,7 @@ class VelocityAviary(BaseAviary):
                          output_folder=output_folder
                          )
         #### Set a limit on the maximum target speed ###############
-        self.SPEED_LIMIT = 0.3 * self.MAX_SPEED_KMH * (1000/3600)
+        self.SPEED_LIMIT = 0.05 * self.MAX_SPEED_KMH * (1000/3600)
 
     ################################################################################
 
