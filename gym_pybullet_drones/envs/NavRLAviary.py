@@ -48,6 +48,7 @@ LAMBDA_SS      = 1.0
 LAMBDA_DS      = 1.0
 LAMBDA_SMOOTH  = 0.1
 LAMBDA_HEIGHT  = 0.1
+COLLISION_PENALTY = -5.0      # 碰撞惩罚，大负值
 
 # ===============================================================
 
@@ -82,9 +83,12 @@ class NavRLAviary(BaseRLAviary):
         self.SCENARIO = scenario  # 场景类型
         self.ACTION_REPEAT = max(1, action_repeat)
         self.deterministic = DEFAULT_DETERMINISTIC
+        self.collision_penalty = COLLISION_PENALTY
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
+
+        self.collision = False  # 碰撞标志
 
         # 占位
         # 用于奖励计算的上一步速度缓存
@@ -271,6 +275,7 @@ class NavRLAviary(BaseRLAviary):
         # 重置速度缓存
         self.prev_vel_goal = np.zeros(3)
         self.step_counter = 0
+        self.collision = False
 
         p.addUserDebugText(
             text="S",
@@ -364,8 +369,6 @@ class NavRLAviary(BaseRLAviary):
         return obs_vec.reshape(1, -1)  # Gymnasium 多智能体接口期望 (num_drones, obs_dim)
 
 
-
-
     def _observationSpace(self):
         """
         根据 DEFAULT 参数计算观测维度：
@@ -433,6 +436,11 @@ class NavRLAviary(BaseRLAviary):
     # ------------------------ Reward & Termination ------------------------
 
     def _computeReward(self):
+        if self.collision:
+            # 仍然记录子奖励供 info 输出
+            self._reward_parts = {"r_vel": 0, "r_ss": 0, "r_ds": 0, "r_smooth": 0, "r_height": 0}
+            return self.collision_penalty
+
         state = self._getDroneStateVector(0)
         P_r_W = state[0:3]
         V_r_W = state[10:13]
@@ -482,6 +490,10 @@ class NavRLAviary(BaseRLAviary):
         """
         terminated=True   → 任务本身结束（例如到达目标或碰撞）
         """
+        # 碰撞直接终止
+        if self.collision:
+            return True
+
         state = self._getDroneStateVector(0)
         dist = np.linalg.norm(self.P_g - state[0:3])
         return dist < self.goal_tol  # 仅成功条件
@@ -505,6 +517,13 @@ class NavRLAviary(BaseRLAviary):
 
     def _postAction(self):
         self.step_counter += 1  # 追踪当前步数
+        # ---- 碰撞检测 ----
+        # 只要无人机与任何物体接触，就判定碰撞
+        # 假设单无人机，bodyUniqueId 存在 self.DRONE_IDS[0]
+        drone_id = self.DRONE_IDS[0]
+        contacts = p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT)
+        if len(contacts) > 0:
+            self.collision = True
 
 
     # ----------- 辅助方法 -----------
