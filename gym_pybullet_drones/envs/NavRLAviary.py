@@ -28,7 +28,7 @@ DEFAULT_SAMPLING_RANGE     = 5.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True    # 方便检查gui并打印episode结束原因
 
 # 动作缩放
-DEFAULT_MAX_VEL_MPS        = 1.0         # xy最大速度，注意 max_speed_kmh 30.000000，由于速度可以直接导入控制层无需反归一化。
+DEFAULT_MAX_VEL_MPS        = 3.0         # xy最大速度，注意 max_speed_kmh 30.000000，由于速度可以直接导入控制层无需反归一化。
 DEFAULT_MAX_VEL_Z          = 1.0         # 垂直最大速度
 DEFAULT_MAX_YAW_RATE       = math.pi/3   # 60 °/s
 DEFAULT_SPEED_RATIO        = 1           # φ_speed，决定速度幅值的固定系数 (0~1)
@@ -138,8 +138,10 @@ class NavRLAviary(BaseRLAviary):
     # ------------------------ Episode 管理 ------------------------
     def step(self, action):
         if self.DEBUG:
-            # 原始动作（High-level RL 输出）
-            print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(raw) ── {np.array(action).reshape(-1)}")
+            interval = max(1, self.MAX_STEPS // 10)
+            if self.step_counter % interval == 0:
+                # 原始动作（High-level RL 输出）
+                print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(raw) ── {np.array(action).reshape(-1)}")
 
         obs, reward, terminated, truncated, info = super().step(action)
 
