@@ -96,6 +96,11 @@ class NavRLAviary(BaseRLAviary):
         self.enable_static_obs = enable_static_obs
         self.num_static_obs = num_static_obs
 
+        # Beta 分布形状参数 (α, β)，对每个动作维度均相同
+        self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
+        self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
+        self.action_space.sample = self.sample_beta_action
+
         # 用来存放当前 step 各子奖励
         self._reward_parts: dict = {
             "r_vel": 0.0,
@@ -156,7 +161,11 @@ class NavRLAviary(BaseRLAviary):
                 # 原始动作（High-level RL 输出）
                 print(f"[DEBUG] Step {self.step_counter:4d} ── ACTION(raw) ── {np.array(action).reshape(-1)}")
 
+
+        if action is None:
+            action = self.sample_beta_action()
         obs, reward, terminated, truncated, info = super().step(action)
+
 
         if self.DEBUG and (terminated or truncated):
             reason = "GOAL" if terminated else "TIMEOUT"
@@ -512,3 +521,16 @@ class NavRLAviary(BaseRLAviary):
                 # 未知场景：不放障碍
                 if self.DEBUG:
                     print(f"[DEBUG] unknown scenario '{self.SCENARIO}': no obstacles added")
+
+    def sample_beta_action(self) -> np.ndarray:
+        """
+        从 Beta(α,β) 中按形状参数采样，
+        原始 u ∈ [0,1]，再线性映射到 action ∈ [-1,1]。
+        返回 shape = (num_drones, DEFAULT_ACTION_DIM)
+        """
+        # u.shape = (num_drones, 4)
+        u = np.random.beta(self._beta_alpha,
+                           self._beta_beta,
+                           size=(self.NUM_DRONES, DEFAULT_ACTION_DIM))
+        # 映射到 [-1,1]
+        return (2.0 * u - 1.0).astype(np.float32)
