@@ -86,13 +86,15 @@ class NavRLAviary(BaseRLAviary):
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
 
+        # 占位
         # 用于奖励计算的上一步速度缓存
         self.prev_vel_goal = np.zeros(3)
-
         # 起点占位；目标占位，避免零向量除以 0
         self.P_s = np.zeros(3)
         self.P_g = np.array([1., 0., 0.])
         self.R_W2G = np.eye(3)
+        # 固定朝向用的 yaw（rad），会在 reset() 里覆盖
+        self.fixed_target_yaw = 0.0
 
         # 静态障碍
         self._static_obstacle_ids: List[int] = []
@@ -108,7 +110,7 @@ class NavRLAviary(BaseRLAviary):
             "r_height": 0.0,
         }
 
-        # 把初始高度抬高，第三维。
+        # 把初始高度抬高，第三维
         init_xyzs = np.array([[0.0, 0.0, 0.5]])  # (num_drones,3)
         base_kwargs.setdefault("initial_xyzs", init_xyzs)
 
@@ -264,6 +266,8 @@ class NavRLAviary(BaseRLAviary):
                                [-sin_yaw, cos_yaw, 0],
                                [      0 ,      0 , 1]])
 
+        self.fixed_target_yaw = math.atan2(fg[1], fg[0])
+
         # 重置速度缓存
         self.prev_vel_goal = np.zeros(3)
         self.step_counter = 0
@@ -405,11 +409,8 @@ class NavRLAviary(BaseRLAviary):
             ], dtype=np.float32)
             v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
 
-            # -------- 航向闭环：始终朝向速度方向 --------
-            if np.linalg.norm(v_des[:2]) > 1e-6:
-                target_yaw = math.atan2(v_des[1], v_des[0])
-            else:
-                target_yaw = cur_yaw
+            # -------- 航向固定：始终脸朝 reset 时算好的目标方向 --------
+            target_yaw = self.fixed_target_yaw
 
             if self.DEBUG:
                 interval = max(1, self.MAX_STEPS // 10)
