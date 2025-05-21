@@ -18,9 +18,9 @@ DEFAULT_N_H                = 36      # 水平射线数量 (每 10° 一条)
 DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15°)
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
-DEFAULT_MAX_EPISODE_SEC    = 10_000  # 单集最长秒数
+DEFAULT_MAX_EPISODE_SEC    = 10_000 # 单集最长秒数
 DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
-DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
+# DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 5       # S_int 维度
 DEFAULT_ACTION_DIM         = 4       # 动作维度 (VEL -> 4)
@@ -72,6 +72,7 @@ class NavRLAviary(BaseRLAviary):
         self.CTRL_FREQ = ctrl_freq
         self.CTRL_TIMESTEP = 1 / self.CTRL_FREQ
         self.DEBUG = debug
+        self.MAX_STEPS = self.EPISODE_SEC * self.CTRL_FREQ
 
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
@@ -145,7 +146,7 @@ class NavRLAviary(BaseRLAviary):
         if self.DEBUG and (terminated or truncated):
             reason = "GOAL" if terminated else "TIMEOUT"
             print(f"[EPISODE END] reason={reason}  steps={self.step_counter}  dist={info['distance_to_goal']:.2f}")
-            # 3)
+            print(f"[DEBUG] EPISODE_SEC={self.EPISODE_SEC}, CTRL_FREQ={self.CTRL_FREQ}, MAX_STEPS={self.MAX_STEPS}")
             # 经过 _preprocessAction -> clipped_action 后的 RPM
             # BaseAviary 会把 last_clipped_action 设为本步最终 RPM
             print(f"[DEBUG] RPM(applied)    ── {self.last_clipped_action[0].round(1)}")
@@ -420,7 +421,7 @@ class NavRLAviary(BaseRLAviary):
 
     def _computeTruncated(self):
         """超时截断：到达最大步数即结束。"""
-        return self.step_counter >= self.EPISODE_SEC * self.CTRL_FREQ
+        return self.step_counter >= self.MAX_STEPS
 
 
     # ----------- PyBullet step 钩子 (父类 step 会调用) -----------
