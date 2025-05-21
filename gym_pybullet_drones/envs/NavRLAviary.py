@@ -349,8 +349,8 @@ class NavRLAviary(BaseRLAviary):
     # ------------------------ Action space -----------------------
     def _actionSpace(self):
         from gymnasium import spaces
-        lo = np.zeros((1, DEFAULT_ACTION_PARAM_DIM), dtype=np.float32)
-        hi = np.full((1, DEFAULT_ACTION_PARAM_DIM), np.inf, dtype=np.float32)
+        lo = np.full((1, DEFAULT_ACTION_PARAM_DIM), 1e-3, dtype=np.float32)
+        hi = np.full((1, DEFAULT_ACTION_PARAM_DIM), 10.0, dtype=np.float32)
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
     # ------------------------ Action → RPM ------------------------
