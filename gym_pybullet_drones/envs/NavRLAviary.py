@@ -310,7 +310,7 @@ class NavRLAviary(BaseRLAviary):
         results = p.rayTestBatch(ray_from.tolist(), ray_to.tolist(), physicsClientId=self.CLIENT)
         dists = np.array([hit[2] * RAY_LEN for hit in results])  # hit[2] 是 hitFraction
 
-        self._draw_rays(pos_world, dists)
+        # self._draw_rays(pos_world, dists)
         return dists  # shape (N_H * N_V,)
 
     def _get_dynamic_obstacles(self, pos_world: np.ndarray) -> Tuple[np.ndarray, int]:
