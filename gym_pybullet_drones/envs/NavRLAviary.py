@@ -19,9 +19,9 @@ DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15�
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
 DEFAULT_MAX_EPISODE_SEC    = 50      # 单集最长秒数
-DEFAULT_CTRL_FREQ          = 48      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
+DEFAULT_CTRL_FREQ          = 120      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
 # DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
-DEFAULT_ACTION_HZ          = 6       # RL 每秒给几次动作，最好小于CTRL
+DEFAULT_ACTION_HZ          = 60       # RL 每秒给几次动作，最好小于CTRL
 DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 7       # S_int 维度
@@ -32,7 +32,7 @@ DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原�
 DEFAULT_ACTION_DIM         = 3                       # 动作维度 (VEL -> 4)
 DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 DEFAULT_ACTION_DIM 个，共 2*DEFAULT_ACTION_DIM 维
 DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
-DEFAULT_MAX_VEL_MPS        = 10.0                    # xy最大速度，注意 max_speed_kmh 30.000000
+DEFAULT_MAX_VEL_MPS        = 2.0                    # xy最大速度，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 0.1                     # 垂直最大速度
 DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
 
@@ -136,9 +136,6 @@ class NavRLAviary(BaseRLAviary):
         # Beta 分布形状参数 (α, β)，对每个动作维度均相同
         self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
         self._beta_beta = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
-
-        # MAX_SPEED_KMH 由 BaseAviary 读 URDF 时写入
-        self.SPEED_LIMIT = 0.05 * self.MAX_SPEED_KMH * (1000 / 3600)  # 与VelocityAviary.py保持一致
 
         # 预计算光线单位方向 (body frame)
         self._ray_directions_body = self._precompute_ray_dirs()
@@ -410,7 +407,7 @@ class NavRLAviary(BaseRLAviary):
                 v_hat[1] * DEFAULT_MAX_VEL_MPS,
                 v_hat[2] * DEFAULT_MAX_VEL_Z
             ], dtype=np.float32)
-            v_des = self.SPEED_LIMIT * DEFAULT_SPEED_RATIO * v_des
+            v_des = DEFAULT_SPEED_RATIO * v_des
 
             # -------- 航向固定：始终脸朝 reset 时算好的目标方向 --------
             target_yaw = self.fixed_target_yaw
