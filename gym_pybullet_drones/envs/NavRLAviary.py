@@ -33,13 +33,13 @@ g  = 9.81                               # m/s²
 DEFAULT_ACTION_DIM         = 3                       # 动作维度 (VEL -> 4)
 DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 DEFAULT_ACTION_DIM 个，共 2*DEFAULT_ACTION_DIM 维
 DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
-DEFAULT_MAX_VEL_MPS        = 10                    # xy最大速度，注意 max_speed_kmh 30.000000
+DEFAULT_MAX_VEL_MPS        = 5                    # xy最大速度，注意 max_speed_kmh 30.000000
 DEFAULT_MAX_VEL_Z          = 0                     # 垂直最大速度
 DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "cube.urdf"
-DEFAULT_SCENARIO              = "circle"   # 可选 "random" | "simple"
+DEFAULT_SCENARIO              = "simple"   # 可选 "random" | "simple" | "circle"
 DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
 DEFAULT_NUM_STATIC_OBS        = 5         # 默认静态障碍物个数
 COLLISION_DISTANCE_THRESH     = 0.05       # 5cm 以内即视为碰撞
@@ -584,7 +584,9 @@ class NavRLAviary(BaseRLAviary):
         min_d = horiz_dists.min()
         # 始终打印最小距离
         if self.DEBUG:
-            print(f"[DEBUG] horizontal ray min distance = {min_d:.3f} m")
+            interval = max(1, self.MAX_STEPS // 10)
+            if self.step_counter % interval == 0:
+                print(f"[DEBUG] horizontal ray min distance = {min_d:.3f} m")
         if min_d < RAY_COLLISION_THRESH:
             if self.DEBUG:
                 print(f"[COLLISION] horizontal ray min={min_d:.3f}m  <  {RAY_COLLISION_THRESH}")
