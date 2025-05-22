@@ -8,6 +8,8 @@ from scipy.spatial.transform import Rotation
 from gym_pybullet_drones.control.BaseControl import BaseControl
 from gym_pybullet_drones.utils.enums import DroneModel
 
+DEFAULT_MAX_TILT_DEG = 45.0          # 最大倾角上限
+DEFAULT_MAX_PWM      = 100000        # 最大 PWM 饱和
 
 class DSLPIDControl(BaseControl):
     """
@@ -18,8 +20,10 @@ class DSLPIDControl(BaseControl):
 
     def __init__(self,
                  drone_model: DroneModel,
-                 g: float = 9.8
-                 ):
+                 g: float = 9.8,
+                 max_tilt_deg: float = DEFAULT_MAX_TILT_DEG,  # 最大倾角上限
+                 max_pwm: int = DEFAULT_MAX_PWM        # 最大 PWM 饱和
+        ):
         """
         初始化 PID 控制器
 
@@ -34,10 +38,14 @@ class DSLPIDControl(BaseControl):
         if self.DRONE_MODEL != DroneModel.CF2X and self.DRONE_MODEL != DroneModel.CF2P:
             print("[ERROR] DSLPIDControl 仅支持 DroneModel.CF2X 或 CF2P")
             exit()
-        # 位置环 PID 参数 （前向），尝试提高pid横向增益。
-        self.P_COEFF_FOR = np.array([.4, .4, 1.25])
+        # 位置环 PID 参数 （前向）
+        # self.P_COEFF_FOR = np.array([.4, .4, 1.25])
         self.I_COEFF_FOR = np.array([.05, .05, .05])
-        self.D_COEFF_FOR = np.array([.2, .2, .5])
+        # self.D_COEFF_FOR = np.array([.2, .2, .5])
+        self.P_COEFF_FOR = np.array([0.1, 0.1, 1.25])   # 高速版本：x,y 从 0.4→0.1
+        self.D_COEFF_FOR = np.array([0.05, 0.05, 0.5])  # 高速版本；x,y 从 0.2→0.05
+
+
         # 姿态环 PID 参数（扭矩）
         self.P_COEFF_TOR = np.array([70000., 70000., 60000.])
         self.I_COEFF_TOR = np.array([.0, .0, 500.])
@@ -46,9 +54,10 @@ class DSLPIDControl(BaseControl):
         self.PWM2RPM_SCALE = 0.2685
         self.PWM2RPM_CONST = 4070.3
         # PWM 输出范围
-        self.MIN_PWM = 20000
-        self.MAX_PWM = 65535
-        # 根据机型选择混合矩阵（动力分配）
+        self.MAX_TILT_RAD = math.radians(max_tilt_deg)
+        self.MIN_PWM = 0
+        self.MAX_PWM = max_pwm
+        # 根据机型选择混合矩阵（动力分配），电机模型尽量不更改
         if self.DRONE_MODEL == DroneModel.CF2X:
             self.MIXER_MATRIX = np.array([
                 [-.5, -.5, -1],
@@ -106,6 +115,10 @@ class DSLPIDControl(BaseControl):
         yaw_error : float
             当前偏航角误差
         """
+        speed = np.linalg.norm(target_vel)
+        if speed > self.max_speed_mps:
+            target_vel = target_vel / speed * self.max_speed_mps
+
         self.control_counter += 1
         # 计算位置环得到推力和期望姿态角
         thrust, computed_target_rpy, pos_e = self._dslPIDPositionControl(
@@ -160,6 +173,7 @@ class DSLPIDControl(BaseControl):
         # 将三轴推力投影到机身 z 轴方向并转为电机推力指令
         scalar_thrust = max(0., np.dot(target_thrust, cur_rotation[:, 2]))
         thrust = (math.sqrt(scalar_thrust / (4 * self.KF)) - self.PWM2RPM_CONST) / self.PWM2RPM_SCALE
+
         # 计算期望机体坐标系轴向，为姿态控制做准备
         target_z_ax = target_thrust / np.linalg.norm(target_thrust)
         target_x_c = np.array([math.cos(target_rpy[2]), math.sin(target_rpy[2]), 0])
@@ -169,6 +183,23 @@ class DSLPIDControl(BaseControl):
         target_rotation = np.vstack([target_x_ax, target_y_ax, target_z_ax]).T
         # 转换为欧拉角
         target_euler = Rotation.from_matrix(target_rotation).as_euler('XYZ', False)
+
+        # 倾角保护
+        tilt_mag = math.hypot(target_euler[0], target_euler[1])
+        if tilt_mag > self.MAX_TILT_RAD:
+            scale = self.MAX_TILT_RAD / tilt_mag
+            target_euler[0] *= scale
+            target_euler[1] *= scale
+            # 水平推力按同样 scale 缩小
+            horiz = np.linalg.norm(target_thrust[:2])
+            if horiz > 1e-6:
+                target_thrust[:2] *= scale
+
+        # 重新计算 scalar_thrust & thrust
+        scalar_thrust = max(0., np.dot(target_thrust, cur_rotation[:, 2]))
+        thrust = (math.sqrt(scalar_thrust / (4 * self.KF))
+                  - self.PWM2RPM_CONST) / self.PWM2RPM_SCALE
+
         return thrust, target_euler, pos_e
 
     ################################################################################
