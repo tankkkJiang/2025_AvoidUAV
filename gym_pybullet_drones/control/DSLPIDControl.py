@@ -10,6 +10,7 @@ from gym_pybullet_drones.utils.enums import DroneModel
 
 DEFAULT_MAX_TILT_DEG = 45.0          # 最大倾角上限
 DEFAULT_MAX_PWM      = 100000        # 最大 PWM 饱和
+DEFAULT_MAX_SPEED_MPS= 25.0
 
 class DSLPIDControl(BaseControl):
     """
@@ -22,7 +23,8 @@ class DSLPIDControl(BaseControl):
                  drone_model: DroneModel,
                  g: float = 9.8,
                  max_tilt_deg: float = DEFAULT_MAX_TILT_DEG,  # 最大倾角上限
-                 max_pwm: int = DEFAULT_MAX_PWM        # 最大 PWM 饱和
+                 max_pwm: int = DEFAULT_MAX_PWM,        # 最大 PWM 饱和
+                 max_speed_mps: float = DEFAULT_MAX_SPEED_MPS
         ):
         """
         初始化 PID 控制器
@@ -57,6 +59,7 @@ class DSLPIDControl(BaseControl):
         self.MAX_TILT_RAD = math.radians(max_tilt_deg)
         self.MIN_PWM = 0
         self.MAX_PWM = max_pwm
+        self.max_speed_mps = max_speed_mps
         # 根据机型选择混合矩阵（动力分配），电机模型尽量不更改
         if self.DRONE_MODEL == DroneModel.CF2X:
             self.MIXER_MATRIX = np.array([
