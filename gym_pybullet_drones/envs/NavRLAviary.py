@@ -26,7 +26,7 @@ DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 7       # S_int 维度
 DEFAULT_SAMPLING_RANGE     = 10.0     # 50×50 m 场地的一半
-DEFAULT_DEBUG              = False   # 方便检查gui并打印episode结束原因
+DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
 g  = 9.81                               # m/s²
 
 # 动作缩放
@@ -39,7 +39,7 @@ DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度�
 
 # 静态障碍参数
 DEFAULT_OBSTACLE_URDF = "cube.urdf"
-DEFAULT_SCENARIO              = "random"   # 可选 "random" | "simple" | "circle"
+DEFAULT_SCENARIO              = "simple"   # 可选 "random" | "simple" | "circle"
 DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
 DEFAULT_NUM_STATIC_OBS        = 5         # 默认静态障碍物个数
 COLLISION_DISTANCE_THRESH     = 0.05       # 5cm 以内即视为碰撞
@@ -501,7 +501,62 @@ class NavRLAviary(BaseRLAviary):
         pass
 
 
-    # ----------- 辅助方法 ----------- _:
+    # ----------- 辅助方法 -----------
+    def _add_static_obstacles(self):
+        """根据不同场景在环境中添加静态障碍物。"""
+        if not self.enable_static_obs:
+            return
+
+        match self.SCENARIO:
+            case "simple":
+                # 在起点 Ps 与终点 Pg 的中点放一个方块
+                mid = (self.P_s + self.P_g) / 2.0
+                oid = p.loadURDF(
+                    DEFAULT_OBSTACLE_URDF,
+                    basePosition=[mid[0], mid[1], 0.5],
+                    globalScaling=1.0,
+                    physicsClientId=self.CLIENT
+                )
+                self._static_obstacle_ids.append(oid)
+                if self.DEBUG:
+                    print(f"[DEBUG] simple: placed 1 box at midpoint {mid.tolist()}")
+
+            case "random":
+                # 随机散布 num_static_obs 个方块
+                for _ in range(self.num_static_obs):
+                    dx, dy = np.random.uniform(-self.SAMPLING_RANGE, self.SAMPLING_RANGE, size=2)
+                    pos = [self.P_s[0] + dx, self.P_s[1] + dy, 0.5]
+                    oid = p.loadURDF(
+                        DEFAULT_OBSTACLE_URDF,
+                        basePosition=pos,
+                        globalScaling=1.0,
+                        physicsClientId=self.CLIENT
+                    )
+                    self._static_obstacle_ids.append(oid)
+                if self.DEBUG:
+                    print(f"[DEBUG] random: placed {self.num_static_obs} boxes")
+
+            case "circle":
+                # 在起点周围围成一个圆环
+                for i in range(self.num_static_obs):
+                    theta = 2*math.pi * i / self.num_static_obs
+                    r = self.SAMPLING_RANGE * 0.5
+                    pos = [
+                        self.P_s[0] + r*math.cos(theta),
+                        self.P_s[1] + r*math.sin(theta),
+                        0.5
+                    ]
+                    oid = p.loadURDF(
+                        DEFAULT_OBSTACLE_URDF,
+                        basePosition=pos,
+                        globalScaling=1.0,
+                        physicsClientId=self.CLIENT
+                    )
+                    self._static_obstacle_ids.append(oid)
+                if self.DEBUG:
+                    print(f"[DEBUG] circle: placed {self.num_static_obs} boxes in a ring")
+
+            case _:
                 # 未知场景：不放障碍
                 if self.DEBUG:
                     print(f"[DEBUG] unknown scenario '{self.SCENARIO}': no obstacles added")
