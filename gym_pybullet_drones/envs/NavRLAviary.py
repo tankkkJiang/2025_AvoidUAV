@@ -185,6 +185,10 @@ class NavRLAviary(BaseRLAviary):
 
         obs, reward, terminated, truncated, info = super().step(action)
 
+        collided = self._check_collision()  # 里面会根据 DEBUG 打印最小距离
+        if collided:
+            self.collision = True
+
 
         if self.DEBUG and (terminated or truncated):
             reason = "GOAL" if terminated else "TIMEOUT"
@@ -492,16 +496,6 @@ class NavRLAviary(BaseRLAviary):
 
 
     # ----------- PyBullet step 钩子 (父类 step 会调用) -----------
-
-    def _postAction(self):
-        print("[DEBUG] >>> ENTER _postAction()", flush=True)
-        self.step_counter += 1  # 追踪当前步数
-        # ---- 碰撞检测 ----
-        # 只要无人机与任何物体接触，就判定碰撞
-        # 假设单无人机，bodyUniqueId 存在 self.DRONE_IDS[0]
-        if not self.collision:
-            self.collision = self._check_collision()
-
     def _applyMotorAction(self, rpm: np.ndarray):
         """覆盖父类：不施加任何推力/力矩."""
         pass
