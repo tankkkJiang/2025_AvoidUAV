@@ -41,6 +41,7 @@ DEFAULT_OBSTACLE_URDF = "cube.urdf"
 DEFAULT_SCENARIO              = "simple"   # 可选 "random" | "simple"
 DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
 DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
+COLLISION_DISTANCE_THRESH     = 0.05       # 5cm 以内即视为碰撞
 
 # 奖励权重 λ_i
 LAMBDA_VEL     = 10.0
@@ -368,51 +369,6 @@ class NavRLAviary(BaseRLAviary):
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
     # ------------------------ Action → RPM ------------------------
-    # def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
-    #     """
-    #     将 [vx̂, vŷ, vẑ, ω̂yaw] → 4 电机 RPM.
-    #     """
-    #     rpm = np.zeros((self.NUM_DRONES, 4))
-    #     for k in range(self.NUM_DRONES):
-    #         state = self._getDroneStateVector(k)
-    #         cur_yaw = state[9]
-    #
-    #         # -------- 当前线速度方向 --------
-    #         vel = state[10:13]                             # vx, vy, vz
-    #         speed = np.linalg.norm(vel)                    # 速度大小
-    #         print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} speed = {speed:.3f} m/s, vel = {vel.round(3)}")
-    #
-    #         # -------- 线速度方向 --------
-    #         v_hat = action[k, 0:DEFAULT_ACTION_DIM]  # [-1,1]^3
-    #         # x,y 用 DEFAULT_MAX_VEL_MPS，z 用 DEFAULT_MAX_VEL_Z
-    #         v_des = np.array([
-    #             v_hat[0] * DEFAULT_MAX_VEL_MPS,
-    #             v_hat[1] * DEFAULT_MAX_VEL_MPS,
-    #             v_hat[2] * DEFAULT_MAX_VEL_Z
-    #         ], dtype=np.float32)
-    #         v_des = DEFAULT_SPEED_RATIO * v_des
-    #
-    #         # -------- 航向固定：始终脸朝 reset 时算好的目标方向 --------
-    #         target_yaw = self.fixed_target_yaw
-    #
-    #         if self.DEBUG:
-    #             interval = max(1, self.MAX_STEPS // 10)
-    #             if self.step_counter % interval == 0:
-    #                 print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} v_target = {v_des.round(3)}")
-    #
-    #         # -------- PID 控制求电机 RPM --------
-    #         rpm[k, :], _, _ = self.ctrl[k].computeControl(
-    #             control_timestep=self.CTRL_TIMESTEP,
-    #             cur_pos=state[0:3],
-    #             cur_quat=state[3:7],
-    #             cur_vel=state[10:13],
-    #             cur_ang_vel=state[13:16],
-    #             target_pos=state[0:3],                      # 不跟踪位置
-    #             target_rpy=np.array([0., 0., target_yaw]),  # 只改偏航
-    #             target_vel=v_des  # 线速度追踪
-    #         )
-    #     return rpm
-
     def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
         """
         1. 把 [-1,1]^3 → 真实速度 v_des (m/s)
@@ -428,15 +384,18 @@ class NavRLAviary(BaseRLAviary):
             v_hat[2] * DEFAULT_MAX_VEL_Z
         ], dtype=np.float32) * DEFAULT_SPEED_RATIO       # (3,)
 
+        state = self._getDroneStateVector(k)
+
         # -------- DEBUG 打印当前/目标速度 -------------
         if self.DEBUG:
-            state   = self._getDroneStateVector(k)
-            cur_vel = state[10:13]
-            cur_spd = np.linalg.norm(cur_vel)
-            tgt_spd = np.linalg.norm(v_des)
-            print(f"Step {self.step_counter:4d} - "
-                  f"[VEL] now {cur_vel.round(3)} |{cur_spd:.3f} m/s  "
-                  f"→  target {v_des.round(3)} |{tgt_spd:.3f} m/s")
+            interval = max(1, self.MAX_STEPS // 10)
+            if self.step_counter % interval == 0:
+                cur_vel = state[10:13]
+                cur_spd = np.linalg.norm(cur_vel)
+                tgt_spd = np.linalg.norm(v_des)
+                print(f"Step {self.step_counter:4d} - "
+                      f"[VEL] now {cur_vel.round(3)} |{cur_spd:.3f} m/s  "
+                      f"→  target {v_des.round(3)} |{tgt_spd:.3f} m/s")
 
         # -------- 直接写入线速度 ----------------------
         p.resetBaseVelocity(self._drone_id,
@@ -534,10 +493,8 @@ class NavRLAviary(BaseRLAviary):
         # ---- 碰撞检测 ----
         # 只要无人机与任何物体接触，就判定碰撞
         # 假设单无人机，bodyUniqueId 存在 self.DRONE_IDS[0]
-        drone_id = self.DRONE_IDS[0]
-        contacts = p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT)
-        if len(contacts) > 0:
-            self.collision = True
+        if not self.collision:
+            self.collision = self._check_collision()
 
     def _applyMotorAction(self, rpm: np.ndarray):
         """覆盖父类：不施加任何推力/力矩."""
@@ -615,3 +572,39 @@ class NavRLAviary(BaseRLAviary):
                            size=(self.NUM_DRONES, DEFAULT_ACTION_DIM))
         # 映射到 [-1,1]
         return (2.0 * u - 1.0).astype(np.float32)
+
+    def _check_collision(self) -> bool:
+        """
+        若无人机与地面或任何障碍物接触 / 距离阈值内，则返回 True
+        """
+        drone_id = self.DRONE_IDS[0]
+
+        # ---------- A. 直接物理接触 ----------
+        contacts = p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT)
+        if len(contacts) > 0:  # penetration distance <= 0 automatically
+            if self.DEBUG:
+                print(f"[COLLISION] contact points = {len(contacts)}")
+            return True
+
+        # ---------- B. 距离阈值预警 ----------
+        # 与地面（bodyUniqueId = 0，默认 plane）最近距离
+        close2ground = p.getClosestPoints(drone_id, 0,
+                                          COLLISION_DISTANCE_THRESH,
+                                          physicsClientId=self.CLIENT)
+        if len(close2ground) > 0:
+            if self.DEBUG:
+                print(f"[COLLISION] dist ≤ {COLLISION_DISTANCE_THRESH:.3f} m to ground")
+            return True
+
+        # 与所有静态障碍物最近距离
+        for obs_id in self._static_obstacle_ids:
+            close = p.getClosestPoints(drone_id, obs_id,
+                                       COLLISION_DISTANCE_THRESH,
+                                       physicsClientId=self.CLIENT)
+            if len(close) > 0:
+                if self.DEBUG:
+                    print(f"[COLLISION] dist ≤ {COLLISION_DISTANCE_THRESH:.3f} m to obs {obs_id}")
+                return True
+
+        # 如果未来引入动态障碍物，同理再加一层遍历
+        return False
