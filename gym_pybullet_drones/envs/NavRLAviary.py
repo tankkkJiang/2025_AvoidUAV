@@ -33,7 +33,7 @@ DEFAULT_ACTION_DIM         = 3                       # 动作维度 (VEL -> 4)
 DEFAULT_ACTION_PARAM_DIM   = DEFAULT_ACTION_DIM * 2  # 输出 α,β 各 DEFAULT_ACTION_DIM 个，共 2*DEFAULT_ACTION_DIM 维
 DEFAULT_DETERMINISTIC      = False                   # 如果 True：部署阶段用 Beta 均值；False：训练阶段随机采样
 DEFAULT_MAX_VEL_MPS        = 2.0                    # xy最大速度，注意 max_speed_kmh 30.000000
-DEFAULT_MAX_VEL_Z          = 0.1                     # 垂直最大速度
+DEFAULT_MAX_VEL_Z          = 0                     # 垂直最大速度
 DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度幅值的固定系数 (0~1)
 
 # 静态障碍参数
