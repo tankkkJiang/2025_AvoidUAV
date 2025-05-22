@@ -179,30 +179,6 @@ class NavRLAviary(BaseRLAviary):
 
         obs, reward, terminated, truncated, info = super().step(action)
 
-        if self.DEBUG:
-            interval = max(1, self.MAX_STEPS // 10)
-            if self.step_counter % interval == 0:
-                # obs 形状： (1, obs_dim)
-                obs_vec = obs.flatten()
-                # 切片索引
-                idx = 0
-                # S_int：前 Sint 维（指向目标的单位向量 x,y,z；距离；x 轴速度）
-                si = obs_vec[idx:idx+DEFAULT_S_INT_DIM]
-                print(f"[DEBUG] Step {self.step_counter:4d} S_int (前 {DEFAULT_S_INT_DIM} 维) = {si}  ← [目标方向单位向量(x,y,z), 目标距离, 当前 x 速度]")
-                idx += 5
-
-                # S_dyn：接下来 N_D * 8 维（动态障碍，占位全 0）
-                dyn_dim = self.N_D * DEFAULT_DYN_FEATURE_DIM
-                sd = obs_vec[idx:idx+dyn_dim]
-                print(f"[DEBUG] Step {self.step_counter:4d} S_dyn ({dyn_dim} 维) = {sd}  ← [最近动态障碍的特征向量]")
-                idx += dyn_dim
-
-                # S_stat：接下来 N_H * N_V 维（静态障碍射线距离）
-                stat_dim = self.N_H * self.N_V
-                ss = obs_vec[idx:idx+stat_dim]
-                print(f"[DEBUG] Step {self.step_counter:4d} S_stat ({stat_dim} 维) = {ss}  ← [每条射线到最近静态障碍的距离]")
-                idx += stat_dim
-
 
         if self.DEBUG and (terminated or truncated):
             reason = "GOAL" if terminated else "TIMEOUT"
@@ -398,6 +374,11 @@ class NavRLAviary(BaseRLAviary):
         for k in range(self.NUM_DRONES):
             state = self._getDroneStateVector(k)
             cur_yaw = state[9]
+
+            # -------- 当前线速度方向 --------
+            vel = state[10:13]                             # vx, vy, vz
+            speed = np.linalg.norm(vel)                    # 速度大小
+            print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} speed = {speed:.3f} m/s, vel = {vel.round(3)}")
 
             # -------- 线速度方向 --------
             v_hat = action[k, 0:DEFAULT_ACTION_DIM]  # [-1,1]^3
