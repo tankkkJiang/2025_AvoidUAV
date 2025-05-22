@@ -43,6 +43,7 @@ DEFAULT_CONTROL_FREQ_HZ = 48
 DEFAULT_DURATION_SEC = 5
 DEFAULT_OUTPUT_FOLDER = 'results'
 DEFAULT_COLAB = False
+DEFAULT_NUM_DRONES = 1
 
 def run(
         drone=DEFAULT_DRONE,
@@ -58,23 +59,13 @@ def run(
         colab=DEFAULT_COLAB
         ):
         #### Initialize the simulation #############################
-    INIT_XYZS = np.array([
-                          [ 0, 0, .1],
-                          [.3, 0, .1],
-                          [.6, 0, .1],
-                          [0.9, 0, .1]
-                          ])
-    INIT_RPYS = np.array([
-                          [0, 0, 0],
-                          [0, 0, np.pi/3],
-                          [0, 0, np.pi/4],
-                          [0, 0, np.pi/2]
-                          ])
+    INIT_XYZS = np.array([[0, 0, .1]])
+    INIT_RPYS = np.array([[0, 0, 0]])
     PHY = Physics.PYB
 
     #### Create the environment ################################
     env = VelocityAviary(drone_model=drone,
-                         num_drones=1,
+                         num_drones=DEFAULT_NUM_DRONES,
                          initial_xyzs=INIT_XYZS,
                          initial_rpys=INIT_RPYS,
                          physics=Physics.PYB,
@@ -94,23 +85,23 @@ def run(
     #### Compute number of control steps in the simlation ######
     PERIOD = duration_sec
     NUM_WP = control_freq_hz*PERIOD
-    wp_counters = np.array([0 for i in range(4)])
+    wp_counters = np.array([0 for i in range(DEFAULT_NUM_DRONES)])
 
     #### Initialize the velocity target ########################
-    TARGET_VEL = np.zeros((4,NUM_WP,4))
+    TARGET_VEL = np.zeros((DEFAULT_NUM_DRONES,NUM_WP,4))
     for i in range(NUM_WP):
         TARGET_VEL[0, i, :] = [-0.5, 1, 0, 0.99] if i < (NUM_WP/8) else [0.5, -1, 0, 0.99]
 
 
     #### Initialize the logger #################################
     logger = Logger(logging_freq_hz=control_freq_hz,
-                    num_drones=4,
+                    num_drones=DEFAULT_NUM_DRONES,
                     output_folder=output_folder,
                     colab=colab
                     )
 
     #### Run the simulation ####################################
-    action = np.zeros((4,4))
+    action = np.zeros((DEFAULT_NUM_DRONES,4))
     START = time.time()
     for i in range(0, int(duration_sec*env.CTRL_FREQ)):
 
@@ -121,7 +112,7 @@ def run(
         obs, reward, terminated, truncated, info = env.step(action)
 
         #### Compute control for the current way point #############
-        for j in range(4):
+        for j in range(DEFAULT_NUM_DRONES):
             action[j, :] = TARGET_VEL[j, wp_counters[j], :]
             v = obs[j][10:13]
             speed = np.linalg.norm(v)
@@ -129,11 +120,11 @@ def run(
             print(f"[SPEED] Drone {j}, t = {t:.2f}s, |v| = {speed:.3f} m/s")
 
         #### Go to the next way point and loop #####################
-        for j in range(4):
+        for j in range(DEFAULT_NUM_DRONES):
             wp_counters[j] = wp_counters[j] + 1 if wp_counters[j] < (NUM_WP-1) else 0
 
         #### Log the simulation ####################################
-        for j in range(4):
+        for j in range(DEFAULT_NUM_DRONES):
             logger.log(drone=j,
                        timestamp=i/env.CTRL_FREQ,
                        state= obs[j],
