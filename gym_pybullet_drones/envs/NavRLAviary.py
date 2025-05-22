@@ -19,7 +19,7 @@ DEFAULT_N_V                = 2       # 垂直平面数量 (俯仰角 0°, −15�
 DEFAULT_N_DYN_OBS          = 5       # 最近动态障碍数量上限
 DEFAULT_DYN_FEATURE_DIM    = 8       # 每个动态障碍特征维度
 DEFAULT_MAX_EPISODE_SEC    = 50      # 单集最长秒数
-DEFAULT_CTRL_FREQ          = 120      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
+DEFAULT_CTRL_FREQ          = 60      # 每秒控制步数 (VeloctyAviary.ctrl_freq = 48)
 # DEFAULT_MAX_STEPS          = DEFAULT_MAX_EPISODE_SEC * DEFAULT_CTRL_FREQ
 DEFAULT_ACTION_HZ          = 60       # RL 每秒给几次动作，最好小于CTRL
 DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
@@ -572,34 +572,37 @@ class NavRLAviary(BaseRLAviary):
         """
         若无人机与地面或任何障碍物接触 / 距离阈值内，则返回 True
         """
-        drone_id = self.DRONE_IDS[0]
+        drone_id = self._drone_id  # = self.DRONE_IDS[0]
 
         # ---------- A. 直接物理接触 ----------
-        contacts = p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT)
-        if len(contacts) > 0:  # penetration distance <= 0 automatically
+        # Bullet 里 bodyA/bodyB 的顺序不固定 → 两边都要查
+        contacts = (
+                p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT) +
+                p.getContactPoints(bodyB=drone_id, physicsClientId=self.CLIENT)
+        )
+        if contacts:
             if self.DEBUG:
-                print(f"[COLLISION] contact points = {len(contacts)}")
+                for c in contacts[:3]:  # 只打前三个免得刷屏
+                    print(f"[COLLISION] contact: A={c[1]} B={c[2]} "
+                          f"links=({c[3]},{c[4]})  dist={c[8]:.4f}")
             return True
 
         # ---------- B. 距离阈值预警 ----------
-        # 与地面（bodyUniqueId = 0，默认 plane）最近距离
-        close2ground = p.getClosestPoints(drone_id, 0,
-                                          COLLISION_DISTANCE_THRESH,
-                                          physicsClientId=self.CLIENT)
-        if len(close2ground) > 0:
-            if self.DEBUG:
-                print(f"[COLLISION] dist ≤ {COLLISION_DISTANCE_THRESH:.3f} m to ground")
-            return True
-
-        # 与所有静态障碍物最近距离
-        for obs_id in self._static_obstacle_ids:
-            close = p.getClosestPoints(drone_id, obs_id,
+        bodies_to_check = [0] + self._static_obstacle_ids  # 0 = plane
+        for bid in bodies_to_check:
+            # 对称地检查 (drone, bid) 和 (bid, drone)
+            pairs = (
+                    p.getClosestPoints(drone_id, bid,
+                                       COLLISION_DISTANCE_THRESH,
+                                       physicsClientId=self.CLIENT) +
+                    p.getClosestPoints(bid, drone_id,
                                        COLLISION_DISTANCE_THRESH,
                                        physicsClientId=self.CLIENT)
-            if len(close) > 0:
+            )
+            if pairs:
                 if self.DEBUG:
-                    print(f"[COLLISION] dist ≤ {COLLISION_DISTANCE_THRESH:.3f} m to obs {obs_id}")
+                    print(f"[COLLISION] d≤{COLLISION_DISTANCE_THRESH:.3f} m "
+                          f"between drone and body {bid}")
                 return True
 
-        # 如果未来引入动态障碍物，同理再加一层遍历
         return False
