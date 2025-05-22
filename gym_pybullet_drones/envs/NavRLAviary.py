@@ -25,7 +25,7 @@ DEFAULT_ACTION_HZ          = 60       # RL 每秒给几次动作，最好小于C
 DEFAULT_ACTION_REPEAT = DEFAULT_CTRL_FREQ // DEFAULT_ACTION_HZ
 DEFAULT_GOAL_TOL_DIST      = 0.3     # 视为到达目标的距离阈值 (m)
 DEFAULT_S_INT_DIM          = 7       # S_int 维度
-DEFAULT_SAMPLING_RANGE     = 25.0     # 50×50 m 场地的一半
+DEFAULT_SAMPLING_RANGE     = 10.0     # 50×50 m 场地的一半
 DEFAULT_DEBUG              = True   # 方便检查gui并打印episode结束原因
 g  = 9.81                               # m/s²
 
@@ -41,7 +41,7 @@ DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度�
 DEFAULT_OBSTACLE_URDF = "cube.urdf"
 DEFAULT_SCENARIO              = "random"   # 可选 "random" | "simple"
 DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
-DEFAULT_NUM_STATIC_OBS        = 10         # 默认静态障碍物个数
+DEFAULT_NUM_STATIC_OBS        = 30         # 默认静态障碍物个数
 COLLISION_DISTANCE_THRESH     = 0.05       # 5cm 以内即视为碰撞
 
 # 奖励权重 λ_i
