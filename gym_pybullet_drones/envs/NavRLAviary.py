@@ -52,6 +52,11 @@ LAMBDA_SMOOTH  = 0.1
 LAMBDA_HEIGHT  = 0.1
 COLLISION_PENALTY = -5.0      # 碰撞惩罚，大负值
 
+# 观测
+RAY_LEN               = 20.0     # 所有射线的最大长度 (m)
+RAY_COLLISION_THRESH  = 0.25     # ＜ 此距离则触发碰撞(根据需求可调)
+VIS_RAY_DEBUG         = True     # 打开/关闭 GUI 射线可视化
+
 # ===============================================================
 
 class NavRLAviary(BaseRLAviary):
@@ -87,6 +92,7 @@ class NavRLAviary(BaseRLAviary):
         self.deterministic = DEFAULT_DETERMINISTIC
         self.collision_penalty = COLLISION_PENALTY
 
+
         # 每个 episode 随机生成起始/目标点时的采样边界 (正方形)
         self.SAMPLING_RANGE = DEFAULT_SAMPLING_RANGE
 
@@ -101,6 +107,8 @@ class NavRLAviary(BaseRLAviary):
         self.R_W2G = np.eye(3)
         # 固定朝向用的 yaw（rad），会在 reset() 里覆盖
         self.fixed_target_yaw = 0.0
+        self._ray_vis_ids: List[int] = []  # 保存上一帧 debug line 的 id
+        self._horizontal_idx = np.arange(self.N_H)  # 俯仰角=0° 的索引
 
         # 静态障碍
         self._static_obstacle_ids: List[int] = []
@@ -301,6 +309,8 @@ class NavRLAviary(BaseRLAviary):
         # 批量射线测试
         results = p.rayTestBatch(ray_from.tolist(), ray_to.tolist(), physicsClientId=self.CLIENT)
         dists = np.array([hit[2] * RAY_LEN for hit in results])  # hit[2] 是 hitFraction
+
+        self._draw_rays(pos_world, dists)
         return dists  # shape (N_H * N_V,)
 
     def _get_dynamic_obstacles(self, pos_world: np.ndarray) -> Tuple[np.ndarray, int]:
@@ -574,35 +584,69 @@ class NavRLAviary(BaseRLAviary):
         """
         drone_id = self._drone_id  # = self.DRONE_IDS[0]
 
-        # ---------- A. 直接物理接触 ----------
-        # Bullet 里 bodyA/bodyB 的顺序不固定 → 两边都要查
-        contacts = (
-                p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT) +
-                p.getContactPoints(bodyB=drone_id, physicsClientId=self.CLIENT)
-        )
-        if contacts:
+        # # ---------- A. 直接物理接触 ----------
+        # # Bullet 里 bodyA/bodyB 的顺序不固定 → 两边都要查
+        # contacts = (
+        #         p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT) +
+        #         p.getContactPoints(bodyB=drone_id, physicsClientId=self.CLIENT)
+        # )
+        # if contacts:
+        #     if self.DEBUG:
+        #         for c in contacts[:3]:  # 只打前三个免得刷屏
+        #             print(f"[COLLISION] contact: A={c[1]}B={c[2]} "
+        #                   f"links=({c[3]},{c[4]})  dist={c[8]:.4f}")
+        #     return True
+        #
+        # # ---------- B. 距离阈值预警 ----------
+        # bodies_to_check = [0] + self._static_obstacle_ids  # 0 = plane
+        # for bid in bodies_to_check:
+        #     # 对称地检查 (drone, bid) 和 (bid, drone)
+        #     pairs = (
+        #             p.getClosestPoints(drone_id, bid,
+        #                                COLLISION_DISTANCE_THRESH,
+        #                                physicsClientId=self.CLIENT) +
+        #             p.getClosestPoints(bid, drone_id,
+        #                                COLLISION_DISTANCE_THRESH,
+        #                                physicsClientId=self.CLIENT)
+        #     )
+        #     if pairs:
+        #         if self.DEBUG:
+        #             print(f"[COLLISION] d≤{COLLISION_DISTANCE_THRESH:.3f}m "
+        #                   f"between drone and body {bid}")
+        #         return True
+
+        # ---------- C. 水平射线 ----------
+        state = self._getDroneStateVector(0)
+        ray_dists = self._cast_static_rays(state[0:3])  # 已包含可视化
+        horiz_dists = ray_dists[self._horizontal_idx]  # 取俯仰=0° 的 N_H 根
+        min_d = horiz_dists.min()
+        if min_d < RAY_COLLISION_THRESH:
             if self.DEBUG:
-                for c in contacts[:3]:  # 只打前三个免得刷屏
-                    print(f"[COLLISION] contact: A={c[1]} B={c[2]} "
-                          f"links=({c[3]},{c[4]})  dist={c[8]:.4f}")
+                print(f"[COLLISION] horizontal ray min={min_d:.3f} m  <  {RAY_COLLISION_THRESH}")
             return True
 
-        # ---------- B. 距离阈值预警 ----------
-        bodies_to_check = [0] + self._static_obstacle_ids  # 0 = plane
-        for bid in bodies_to_check:
-            # 对称地检查 (drone, bid) 和 (bid, drone)
-            pairs = (
-                    p.getClosestPoints(drone_id, bid,
-                                       COLLISION_DISTANCE_THRESH,
-                                       physicsClientId=self.CLIENT) +
-                    p.getClosestPoints(bid, drone_id,
-                                       COLLISION_DISTANCE_THRESH,
-                                       physicsClientId=self.CLIENT)
-            )
-            if pairs:
-                if self.DEBUG:
-                    print(f"[COLLISION] d≤{COLLISION_DISTANCE_THRESH:.3f} m "
-                          f"between drone and body {bid}")
-                return True
-
         return False
+
+    def _draw_rays(self, pos: np.ndarray, dists: np.ndarray):
+        """在 GUI 里把本帧所有射线画出来."""
+        if not (self.gui and VIS_RAY_DEBUG):
+            return
+
+        # 1) 清除上一帧
+        for rid in self._ray_vis_ids:
+            p.removeUserDebugItem(rid, physicsClientId=self.CLIENT)
+        self._ray_vis_ids.clear()
+
+        # 2) 画新线
+        dirs = self._ray_directions_body
+        for i in range(self.N_H * self.N_V):
+            end = pos + dirs[i] * dists[i]
+            hit = dists[i] < RAY_LEN - 1e-3  # 命中障碍
+            near = dists[i] < RAY_COLLISION_THRESH  # 距离过近
+            color = ([1, 0, 0] if near else  # 红=已触发
+                     [1, 1, 0] if hit else  # 黄=命中但安全
+                     [0, 1, 0])  # 绿=未命中
+            rid = p.addUserDebugLine(
+                lineFromXYZ=pos, lineToXYZ=end, lineColorRGB=color,
+                lifeTime=0, physicsClientId=self.CLIENT)
+            self._ray_vis_ids.append(rid)
