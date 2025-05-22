@@ -41,7 +41,7 @@ DEFAULT_SPEED_RATIO        = 1                       # φ_speed，决定速度�
 DEFAULT_OBSTACLE_URDF = "cube.urdf"
 DEFAULT_SCENARIO              = "circle"   # 可选 "random" | "simple"
 DEFAULT_ENABLE_STATIC_OBS     = True       # 是否启用随机静态障碍物
-DEFAULT_NUM_STATIC_OBS        = 30         # 默认静态障碍物个数
+DEFAULT_NUM_STATIC_OBS        = 5         # 默认静态障碍物个数
 COLLISION_DISTANCE_THRESH     = 0.05       # 5cm 以内即视为碰撞
 
 # 奖励权重 λ_i
@@ -587,6 +587,9 @@ class NavRLAviary(BaseRLAviary):
         ray_dists = self._cast_static_rays(state[0:3])  # 已包含可视化
         horiz_dists = ray_dists[self._horizontal_idx]  # 取俯仰=0° 的 N_H 根
         min_d = horiz_dists.min()
+        # 始终打印最小距离
+        if self.DEBUG:
+            print(f"[DEBUG] horizontal ray min distance = {min_d:.3f} m")
         if min_d < RAY_COLLISION_THRESH:
             if self.DEBUG:
                 print(f"[COLLISION] horizontal ray min={min_d:.3f}m  <  {RAY_COLLISION_THRESH}")
