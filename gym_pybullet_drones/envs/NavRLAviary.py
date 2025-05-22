@@ -127,12 +127,6 @@ class NavRLAviary(BaseRLAviary):
                          ctrl_freq=self.CTRL_FREQ,
                          **base_kwargs)
 
-        # 创建每架机对应的 DSLPIDControl
-        # if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
-        #     self.ctrl = [DSLPIDControl(drone_model=DroneModel.CF2X)
-        #                  for _ in range(num_drones)]
-        # else:
-        #     raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
 
         self._drone_id = self.DRONE_IDS[0]
 
@@ -515,7 +509,8 @@ class NavRLAviary(BaseRLAviary):
                     DEFAULT_OBSTACLE_URDF,
                     basePosition=[mid[0], mid[1], 0.5],
                     globalScaling=1.0,
-                    physicsClientId=self.CLIENT
+                    physicsClientId=self.CLIENT,
+                    flags=p.URDF_DISABLE_GRAVITY  # 取消重力影响
                 )
                 self._static_obstacle_ids.append(oid)
                 if self.DEBUG:
