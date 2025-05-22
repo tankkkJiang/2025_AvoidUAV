@@ -127,11 +127,13 @@ class NavRLAviary(BaseRLAviary):
                          **base_kwargs)
 
         # 创建每架机对应的 DSLPIDControl
-        if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
-            self.ctrl = [DSLPIDControl(drone_model=DroneModel.CF2X)
-                         for _ in range(num_drones)]
-        else:
-            raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
+        # if drone_model in [DroneModel.CF2X, DroneModel.CF2P]:
+        #     self.ctrl = [DSLPIDControl(drone_model=DroneModel.CF2X)
+        #                  for _ in range(num_drones)]
+        # else:
+        #     raise RuntimeError("NavRLAviary 目前只在 Crazyflie 上测试过。")
+
+        self._drone_id = self.DRONE_IDS[0]
 
         # Beta 分布形状参数 (α, β)，对每个动作维度均相同
         self._beta_alpha = np.ones(DEFAULT_ACTION_DIM, dtype=np.float32) * 2.0
@@ -366,50 +368,84 @@ class NavRLAviary(BaseRLAviary):
         return spaces.Box(low=lo, high=hi, dtype=np.float32)
 
     # ------------------------ Action → RPM ------------------------
+    # def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
+    #     """
+    #     将 [vx̂, vŷ, vẑ, ω̂yaw] → 4 电机 RPM.
+    #     """
+    #     rpm = np.zeros((self.NUM_DRONES, 4))
+    #     for k in range(self.NUM_DRONES):
+    #         state = self._getDroneStateVector(k)
+    #         cur_yaw = state[9]
+    #
+    #         # -------- 当前线速度方向 --------
+    #         vel = state[10:13]                             # vx, vy, vz
+    #         speed = np.linalg.norm(vel)                    # 速度大小
+    #         print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} speed = {speed:.3f} m/s, vel = {vel.round(3)}")
+    #
+    #         # -------- 线速度方向 --------
+    #         v_hat = action[k, 0:DEFAULT_ACTION_DIM]  # [-1,1]^3
+    #         # x,y 用 DEFAULT_MAX_VEL_MPS，z 用 DEFAULT_MAX_VEL_Z
+    #         v_des = np.array([
+    #             v_hat[0] * DEFAULT_MAX_VEL_MPS,
+    #             v_hat[1] * DEFAULT_MAX_VEL_MPS,
+    #             v_hat[2] * DEFAULT_MAX_VEL_Z
+    #         ], dtype=np.float32)
+    #         v_des = DEFAULT_SPEED_RATIO * v_des
+    #
+    #         # -------- 航向固定：始终脸朝 reset 时算好的目标方向 --------
+    #         target_yaw = self.fixed_target_yaw
+    #
+    #         if self.DEBUG:
+    #             interval = max(1, self.MAX_STEPS // 10)
+    #             if self.step_counter % interval == 0:
+    #                 print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} v_target = {v_des.round(3)}")
+    #
+    #         # -------- PID 控制求电机 RPM --------
+    #         rpm[k, :], _, _ = self.ctrl[k].computeControl(
+    #             control_timestep=self.CTRL_TIMESTEP,
+    #             cur_pos=state[0:3],
+    #             cur_quat=state[3:7],
+    #             cur_vel=state[10:13],
+    #             cur_ang_vel=state[13:16],
+    #             target_pos=state[0:3],                      # 不跟踪位置
+    #             target_rpy=np.array([0., 0., target_yaw]),  # 只改偏航
+    #             target_vel=v_des  # 线速度追踪
+    #         )
+    #     return rpm
+
     def _preprocessAction(self, action: np.ndarray) -> np.ndarray:
         """
-        将 [vx̂, vŷ, vẑ, ω̂yaw] → 4 电机 RPM.
+        1. 把 [-1,1]^3 → 真实速度 v_des (m/s)
+        2. 直接用 resetBaseVelocity 注入线速度
+        3. 返回全 0 RPM，桨叶不再产生推力
         """
-        rpm = np.zeros((self.NUM_DRONES, 4))
-        for k in range(self.NUM_DRONES):
-            state = self._getDroneStateVector(k)
-            cur_yaw = state[9]
+        # 目前只支持单架机
+        k = 0
+        v_hat = action[k, 0:DEFAULT_ACTION_DIM]          # [-1,1]
+        v_des = np.array([
+            v_hat[0] * DEFAULT_MAX_VEL_MPS,
+            v_hat[1] * DEFAULT_MAX_VEL_MPS,
+            v_hat[2] * DEFAULT_MAX_VEL_Z
+        ], dtype=np.float32) * DEFAULT_SPEED_RATIO       # (3,)
 
-            # -------- 当前线速度方向 --------
-            vel = state[10:13]                             # vx, vy, vz
-            speed = np.linalg.norm(vel)                    # 速度大小
-            print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} speed = {speed:.3f} m/s, vel = {vel.round(3)}")
+        # -------- DEBUG 打印当前/目标速度 -------------
+        if self.DEBUG:
+            state   = self._getDroneStateVector(k)
+            cur_vel = state[10:13]
+            cur_spd = np.linalg.norm(cur_vel)
+            tgt_spd = np.linalg.norm(v_des)
+            print(f"Step {self.step_counter:4d} - "
+                  f"[VEL] now {cur_vel.round(3)} |{cur_spd:.3f} m/s  "
+                  f"→  target {v_des.round(3)} |{tgt_spd:.3f} m/s")
 
-            # -------- 线速度方向 --------
-            v_hat = action[k, 0:DEFAULT_ACTION_DIM]  # [-1,1]^3
-            # x,y 用 DEFAULT_MAX_VEL_MPS，z 用 DEFAULT_MAX_VEL_Z
-            v_des = np.array([
-                v_hat[0] * DEFAULT_MAX_VEL_MPS,
-                v_hat[1] * DEFAULT_MAX_VEL_MPS,
-                v_hat[2] * DEFAULT_MAX_VEL_Z
-            ], dtype=np.float32)
-            v_des = DEFAULT_SPEED_RATIO * v_des
+        # -------- 直接写入线速度 ----------------------
+        p.resetBaseVelocity(self._drone_id,
+                            linearVelocity=v_des.tolist(),
+                            angularVelocity=[0, 0, 0],
+                            physicsClientId=self.CLIENT)
 
-            # -------- 航向固定：始终脸朝 reset 时算好的目标方向 --------
-            target_yaw = self.fixed_target_yaw
-
-            if self.DEBUG:
-                interval = max(1, self.MAX_STEPS // 10)
-                if self.step_counter % interval == 0:
-                    print(f"Step {self.step_counter:4d} - [DEBUG] Drone {k} v_target = {v_des.round(3)}")
-
-            # -------- PID 控制求电机 RPM --------
-            rpm[k, :], _, _ = self.ctrl[k].computeControl(
-                control_timestep=self.CTRL_TIMESTEP,
-                cur_pos=state[0:3],
-                cur_quat=state[3:7],
-                cur_vel=state[10:13],
-                cur_ang_vel=state[13:16],
-                target_pos=state[0:3],                      # 不跟踪位置
-                target_rpy=np.array([0., 0., target_yaw]),  # 只改偏航
-                target_vel=v_des  # 线速度追踪
-            )
-        return rpm
+        # 返回零转速，避免多余力矩
+        return np.zeros((self.NUM_DRONES, 4), dtype=np.float32)
 
     # ------------------------ Reward & Termination ------------------------
 
@@ -502,6 +538,10 @@ class NavRLAviary(BaseRLAviary):
         contacts = p.getContactPoints(bodyA=drone_id, physicsClientId=self.CLIENT)
         if len(contacts) > 0:
             self.collision = True
+
+    def _applyMotorAction(self, rpm: np.ndarray):
+        """覆盖父类：不施加任何推力/力矩."""
+        pass
 
 
     # ----------- 辅助方法 -----------
