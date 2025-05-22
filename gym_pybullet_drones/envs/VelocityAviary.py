@@ -147,6 +147,11 @@ class VelocityAviary(BaseAviary):
         """
         rpm = np.zeros((self.NUM_DRONES, 4))
         for k in range(action.shape[0]):
+            # 打印当前速度
+            vel = state[10:13]                             # vx, vy, vz
+            speed = np.linalg.norm(vel)                    # 速度大小
+            print(f"[DEBUG] Drone {k} speed = {speed:.3f} m/s, vel = {vel.round(3)}")
+
             #### Get the current state of the drone  ###################
             state = self._getDroneStateVector(k)
             target_v = action[k, :]

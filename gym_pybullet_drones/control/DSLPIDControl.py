@@ -41,12 +41,9 @@ class DSLPIDControl(BaseControl):
             print("[ERROR] DSLPIDControl 仅支持 DroneModel.CF2X 或 CF2P")
             exit()
         # 位置环 PID 参数 （前向）
-        # self.P_COEFF_FOR = np.array([.4, .4, 1.25])
+        self.P_COEFF_FOR = np.array([.4, .4, 1.25])
         self.I_COEFF_FOR = np.array([.05, .05, .05])
-        # self.D_COEFF_FOR = np.array([.2, .2, .5])
-        self.P_COEFF_FOR = np.array([0.1, 0.1, 1.25])   # 高速版本：x,y 从 0.4→0.1
-        self.D_COEFF_FOR = np.array([0.05, 0.05, 0.5])  # 高速版本；x,y 从 0.2→0.05
-
+        self.D_COEFF_FOR = np.array([.2, .2, .5])
 
         # 姿态环 PID 参数（扭矩）
         self.P_COEFF_TOR = np.array([70000., 70000., 60000.])
@@ -118,10 +115,6 @@ class DSLPIDControl(BaseControl):
         yaw_error : float
             当前偏航角误差
         """
-        speed = np.linalg.norm(target_vel)
-        if speed > self.max_speed_mps:
-            target_vel = target_vel / speed * self.max_speed_mps
-
         self.control_counter += 1
         # 计算位置环得到推力和期望姿态角
         thrust, computed_target_rpy, pos_e = self._dslPIDPositionControl(
@@ -186,22 +179,6 @@ class DSLPIDControl(BaseControl):
         target_rotation = np.vstack([target_x_ax, target_y_ax, target_z_ax]).T
         # 转换为欧拉角
         target_euler = Rotation.from_matrix(target_rotation).as_euler('XYZ', False)
-
-        # 倾角保护
-        tilt_mag = math.hypot(target_euler[0], target_euler[1])
-        if tilt_mag > self.MAX_TILT_RAD:
-            scale = self.MAX_TILT_RAD / tilt_mag
-            target_euler[0] *= scale
-            target_euler[1] *= scale
-            # 水平推力按同样 scale 缩小
-            horiz = np.linalg.norm(target_thrust[:2])
-            if horiz > 1e-6:
-                target_thrust[:2] *= scale
-
-        # 重新计算 scalar_thrust & thrust
-        scalar_thrust = max(0., np.dot(target_thrust, cur_rotation[:, 2]))
-        thrust = (math.sqrt(scalar_thrust / (4 * self.KF))
-                  - self.PWM2RPM_CONST) / self.PWM2RPM_SCALE
 
         return thrust, target_euler, pos_e
 
