@@ -494,6 +494,7 @@ class NavRLAviary(BaseRLAviary):
     # ----------- PyBullet step 钩子 (父类 step 会调用) -----------
 
     def _postAction(self):
+        print("[DEBUG] >>> ENTER _postAction()", flush=True)
         self.step_counter += 1  # 追踪当前步数
         # ---- 碰撞检测 ----
         # 只要无人机与任何物体接触，就判定碰撞
