@@ -510,8 +510,7 @@ class NavRLAviary(BaseRLAviary):
                     DEFAULT_OBSTACLE_URDF,
                     basePosition=[mid[0], mid[1], 0.5],
                     globalScaling=1.0,
-                    physicsClientId=self.CLIENT,
-                    flags=p.URDF_DISABLE_GRAVITY  # 取消重力影响
+                    physicsClientId=self.CLIENT
                 )
                 self._static_obstacle_ids.append(oid)
                 if self.DEBUG:
