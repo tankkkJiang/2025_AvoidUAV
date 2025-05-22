@@ -75,7 +75,8 @@ class VelocityAviary(BaseAviary):
                          output_folder=output_folder
                          )
         #### Set a limit on the maximum target speed ###############
-        self.SPEED_LIMIT = 0.05 * self.MAX_SPEED_KMH * (1000/3600)
+        # self.SPEED_LIMIT = 0.05 * self.MAX_SPEED_KMH * (1000/3600)
+        self.SPEED_LIMIT = 1
 
     ################################################################################
 
@@ -161,6 +162,7 @@ class VelocityAviary(BaseAviary):
             else:
                 v_unit_vector = np.zeros(3)
             v_target=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector
+
             print(f"[DEBUG] Drone {k} v_unit_vector = {v_unit_vector.round(3)}, target_vel = {v_target.round(3)}")
             temp, _, _ = self.ctrl[k].computeControl(control_timestep=self.CTRL_TIMESTEP,
                                                     cur_pos=state[0:3],
@@ -169,7 +171,7 @@ class VelocityAviary(BaseAviary):
                                                     cur_ang_vel=state[13:16],
                                                     target_pos=state[0:3], # same as the current position
                                                     target_rpy=np.array([0,0,state[9]]), # keep current yaw
-                                                    target_vel=self.SPEED_LIMIT * np.abs(target_v[3]) * v_unit_vector # target the desired velocity vector
+                                                    target_vel=v_target # target the desired velocity vector
                                                     )
             rpm[k,:] = temp
         return rpm
