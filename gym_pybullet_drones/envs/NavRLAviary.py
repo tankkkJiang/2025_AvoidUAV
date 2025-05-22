@@ -629,7 +629,7 @@ class NavRLAviary(BaseRLAviary):
 
     def _draw_rays(self, pos: np.ndarray, dists: np.ndarray):
         """在 GUI 里把本帧所有射线画出来."""
-        if not (self.gui and VIS_RAY_DEBUG):
+        if not (self.GUI and VIS_RAY_DEBUG):
             return
 
         # 1) 清除上一帧
